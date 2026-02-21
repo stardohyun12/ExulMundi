@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e90b4fdebc4bbb24982d793d756675d9, type: 3}
+  m_Name: Companion_Test2
+  m_EditorClassIdentifier: Assembly-CSharp::CompanionData
+  companionName: Lyra
+  maxHP: 80
+  cardImage: {fileID: 0}
+  atk: 0
+  atkSpeed: 1
+  skillName: 
+  skillDescription: 
+  skillDamage: 0
+  skillCooldown: 5
