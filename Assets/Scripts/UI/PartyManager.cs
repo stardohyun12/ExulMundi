@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using System.Collections.Generic;
 
 /// <summary>
@@ -33,6 +34,18 @@ public class PartyManager : MonoBehaviour
 
     void Start()
     {
+        // HorizontalLayoutGroup이 카드 너비를 기준으로 배치하도록 설정
+        if (cardListParent != null)
+        {
+            var hlg = cardListParent.GetComponent<HorizontalLayoutGroup>();
+            if (hlg != null)
+            {
+                hlg.childControlWidth = true;
+                hlg.childForceExpandWidth = false;
+                hlg.childControlHeight = false;
+            }
+        }
+
         RefreshCardList();
     }
 
@@ -141,6 +154,12 @@ public class PartyManager : MonoBehaviour
         foreach (var companion in ownedCompanions)
         {
             GameObject card = Instantiate(cardPrefab, cardListParent);
+
+            // HorizontalLayoutGroup에 카드 선호 크기를 알려줘 겹침 방지
+            var le = card.AddComponent<LayoutElement>();
+            le.preferredWidth = 160f;
+            le.minWidth = 130f;
+
             CardDisplay display = card.GetComponent<CardDisplay>();
             if (display != null)
                 display.Setup(companion);
