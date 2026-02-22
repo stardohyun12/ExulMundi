@@ -1,17 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Collections.Generic;
 
 /// <summary>
-/// 전투 UI: HP바, 스킬 탭, 전투 결과 표시
+/// 전투 UI: 동료 카드 탭, 전투 결과 표시
+/// 적 HP바는 EnemyUnit 프리팹이 자체적으로 보유
 /// </summary>
 public class BattleUI : MonoBehaviour
 {
-    [Header("적 HP바")]
-    public Transform enemyHPBarParent;
-    public GameObject hpBarPrefab;
-
     [Header("동료 카드 (스킬 탭용)")]
     public Transform companionCardParent;
     public GameObject battleCardPrefab;
@@ -19,8 +15,6 @@ public class BattleUI : MonoBehaviour
     [Header("결과 UI")]
     public GameObject resultPanel;
     public TextMeshProUGUI resultText;
-
-    private Dictionary<EnemyUnit, Slider> enemyHPBars = new Dictionary<EnemyUnit, Slider>();
 
     void Start()
     {
@@ -48,18 +42,6 @@ public class BattleUI : MonoBehaviour
     /// </summary>
     public void InitBattleUI()
     {
-        ClearHPBars();
-
-        if (BattleManager.Instance == null) return;
-
-        // 적 HP바 생성
-        foreach (var enemy in BattleManager.Instance.enemyUnits)
-        {
-            CreateEnemyHPBar(enemy);
-            enemy.OnHPChanged += UpdateEnemyHPBar;
-        }
-
-        // 동료 카드 — CardDisplay가 HP바 갱신 담당
         CreateBattleCards();
 
         if (resultPanel != null)
@@ -77,36 +59,11 @@ public class BattleUI : MonoBehaviour
             Debug.Log("스킬 쿨다운 중...");
     }
 
-    private void CreateEnemyHPBar(EnemyUnit enemy)
-    {
-        if (hpBarPrefab == null || enemyHPBarParent == null) return;
-
-        GameObject bar = Instantiate(hpBarPrefab, enemyHPBarParent);
-        Slider slider = bar.GetComponent<Slider>();
-        if (slider != null)
-        {
-            slider.maxValue = enemy.MaxHP;
-            slider.value = enemy.CurrentHP;
-            enemyHPBars[enemy] = slider;
-        }
-
-        TextMeshProUGUI label = bar.GetComponentInChildren<TextMeshProUGUI>();
-        if (label != null && enemy.Data != null)
-            label.text = enemy.Data.enemyName;
-    }
-
-    private void UpdateEnemyHPBar(EnemyUnit enemy)
-    {
-        if (enemyHPBars.TryGetValue(enemy, out Slider slider))
-            slider.value = enemy.CurrentHP;
-    }
-
     private void CreateBattleCards()
     {
         if (battleCardPrefab == null || companionCardParent == null) return;
         if (BattleManager.Instance == null) return;
 
-        // 기존 카드 제거
         foreach (Transform child in companionCardParent)
             Destroy(child.gameObject);
 
@@ -114,7 +71,6 @@ public class BattleUI : MonoBehaviour
         {
             GameObject card = Instantiate(battleCardPrefab, companionCardParent);
 
-            // CardDisplay 세팅 + HP바 연결
             CardDisplay display = card.GetComponent<CardDisplay>();
             if (display != null)
             {
@@ -122,11 +78,10 @@ public class BattleUI : MonoBehaviour
                 display.LinkUnit(companion);
             }
 
-            // 탭 버튼 연결
             Button btn = card.GetComponent<Button>();
             if (btn != null)
             {
-                CompanionUnit unit = companion; // 클로저 캡처
+                CompanionUnit unit = companion;
                 btn.onClick.AddListener(() => OnCompanionCardTapped(unit));
             }
         }
@@ -142,15 +97,5 @@ public class BattleUI : MonoBehaviour
     {
         if (resultPanel != null) resultPanel.SetActive(true);
         if (resultText != null) resultText.text = "패배...";
-    }
-
-    private void ClearHPBars()
-    {
-        foreach (var kvp in enemyHPBars)
-        {
-            if (kvp.Key != null) kvp.Key.OnHPChanged -= UpdateEnemyHPBar;
-            if (kvp.Value != null) Destroy(kvp.Value.gameObject);
-        }
-        enemyHPBars.Clear();
     }
 }

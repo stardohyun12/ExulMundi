@@ -61,7 +61,6 @@ public class PartyManager : MonoBehaviour
                 slot.Clear();
         }
 
-        targetSlot.SetOccupant(companion);
         Debug.Log($"{companion.companionName} → 슬롯 {slots.IndexOf(targetSlot) + 1}에 배치");
         return true;
     }
@@ -116,6 +115,18 @@ public class PartyManager : MonoBehaviour
         occupiedSlots[idx].Clear();
         Debug.Log($"패널티: {removed.companionName} 이탈");
         return removed;
+    }
+
+    // --- 카드 플레이 처리 ---
+
+    /// <summary>
+    /// 카드가 필드에 배치된 후 손 목록에서 제거
+    /// </summary>
+    public void OnCardPlayed(CompanionData data)
+    {
+        if (data == null) return;
+        ownedCompanions.Remove(data);
+        Debug.Log($"{data.companionName} 필드에 배치됨 → 손에서 제거");
     }
 
     // --- 카드 목록 갱신 ---

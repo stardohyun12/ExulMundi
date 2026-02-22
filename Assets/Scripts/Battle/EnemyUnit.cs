@@ -1,7 +1,9 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
-/// 런타임 적 인스턴스. 자동 공격 로직.
+/// 런타임 적 인스턴스. 자동 공격 로직 및 자체 UI 갱신.
 /// </summary>
 public class EnemyUnit : MonoBehaviour
 {
@@ -11,16 +13,28 @@ public class EnemyUnit : MonoBehaviour
     public int MaxHP => Data != null ? Data.maxHP : 0;
     public bool IsAlive => CurrentHP > 0;
 
+    [Header("UI 참조")]
+    [SerializeField] private Image enemyImage;
+    [SerializeField] private TextMeshProUGUI nameText;
+    [SerializeField] private Slider hpSlider;
+
     private float attackTimer;
     private bool isAttacking;
     private CompanionUnit target;
-
-    public event System.Action<EnemyUnit> OnHPChanged;
 
     public void Initialize(EnemyData data)
     {
         Data = data;
         CurrentHP = data.maxHP;
+
+        if (enemyImage != null) enemyImage.sprite = data.sprite;
+        if (nameText != null) nameText.text = data.enemyName;
+        if (hpSlider != null)
+        {
+            hpSlider.maxValue = data.maxHP;
+            hpSlider.value = data.maxHP;
+        }
+
         isAttacking = true;
     }
 
@@ -53,7 +67,8 @@ public class EnemyUnit : MonoBehaviour
     {
         if (!IsAlive) return;
         CurrentHP = Mathf.Max(0, CurrentHP - damage);
-        OnHPChanged?.Invoke(this);
+
+        if (hpSlider != null) hpSlider.value = CurrentHP;
 
         if (!IsAlive)
         {

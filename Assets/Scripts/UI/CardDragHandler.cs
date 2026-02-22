@@ -16,6 +16,7 @@ public class CardDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     private Transform originalParent;
     private int originalSiblingIndex;
+    private bool isPlayed;
 
     public CompanionData CompanionData => cardDisplay != null ? cardDisplay.companionData : null;
 
@@ -34,7 +35,7 @@ public class CardDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (PartyManager.Instance == null) return;
+        if (isPlayed || PartyManager.Instance == null) return;
 
         originalParent = transform.parent;
         originalSiblingIndex = transform.GetSiblingIndex();
@@ -55,7 +56,7 @@ public class CardDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (rootCanvas == null) return;
+        if (isPlayed || rootCanvas == null) return;
 
         RectTransformUtility.ScreenPointToWorldPointInRectangle(
             rootCanvas.transform as RectTransform,
@@ -68,22 +69,52 @@ public class CardDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     public void OnEndDrag(PointerEventData eventData)
     {
+        if (PartyManager.Instance != null)
+            PartyManager.Instance.IsDragging = false;
+
+        // 이미 슬롯에 배치됐으면 복귀 처리 불필요
+        if (isPlayed) return;
+
         canvasGroup.alpha = 1f;
         canvasGroup.blocksRaycasts = true;
 
         CardHover hover = GetComponent<CardHover>();
         if (hover != null) hover.enabled = true;
 
-        if (PartyManager.Instance != null)
-            PartyManager.Instance.IsDragging = false;
-
         // 슬롯에 배치되지 않았으면 원래 위치로 복귀
-        if (PartyManager.Instance != null && transform.parent == PartyManager.Instance.DragLayer)
-            ReturnToOrigin();
+        ReturnToOrigin();
     }
 
     /// <summary>
-    /// PartySlot이 드롭 성공 후 카드를 원래 목록으로 돌려보낼 때 호출
+    /// 슬롯에 카드를 영구 배치. 이후 드래그 불가 (하스스톤 방식).
+    /// </summary>
+    public void ConfirmPlay(Transform slotTransform)
+    {
+        isPlayed = true;
+
+        // 슬롯의 자식으로 reparent
+        transform.SetParent(slotTransform, false);
+
+        // 슬롯에 꽉 차도록 stretch
+        rectTransform.anchorMin = Vector2.zero;
+        rectTransform.anchorMax = Vector2.one;
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+
+        canvasGroup.alpha = 1f;
+        canvasGroup.blocksRaycasts = true;
+
+        CardHover hover = GetComponent<CardHover>();
+        if (hover != null) hover.enabled = true;
+
+        // 이후 드래그 불가
+        this.enabled = false;
+
+        PartyManager.Instance.OnCardPlayed(CompanionData);
+    }
+
+    /// <summary>
+    /// 슬롯 배치 실패 시 원래 위치로 복귀
     /// </summary>
     public void ReturnToOrigin()
     {
