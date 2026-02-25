@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// 패시브 카드 슬롯 하나.
@@ -15,7 +16,7 @@ public class CardSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IPoin
     public GameObject emptyState;           // 빈 슬롯 표시
     public GameObject cardVisual;           // 카드가 배치되면 표시할 비주얼
     public Image cardImage;                 // 카드 아트
-    public Text cardNameText;               // 카드 이름 (Unity UI Text)
+    public TextMeshProUGUI cardNameText;    // 카드 이름 (TextMeshProUGUI)
 
     [Header("시너지 표시")]
     public Image synergyGlow;               // 시너지 활성화 시 빛나는 효과
@@ -39,6 +40,20 @@ public class CardSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IPoin
     {
         _rectTransform = GetComponent<RectTransform>();
         
+        // TextMeshProUGUI 자동 찾기
+        if (cardNameText == null)
+        {
+            cardNameText = GetComponentInChildren<TextMeshProUGUI>();
+            if (cardNameText != null)
+            {
+                Debug.Log($"[CardSlot {name}] TextMeshProUGUI 자동 연결: {cardNameText.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[CardSlot {name}] TextMeshProUGUI를 찾을 수 없습니다!");
+            }
+        }
+        
         // CardDetailUI 자동 찾기 (비활성화된 것도 포함)
         if (cardDetailUI == null)
         {
@@ -48,24 +63,19 @@ public class CardSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IPoin
 
     void Start()
     {
-        // 원래 위치 저장 (Start에서 해야 에디터에서 설정한 위치 유지)
-        if (_rectTransform != null)
-        {
-            _originalAnchoredPos = _rectTransform.anchoredPosition;
-            _targetAnchoredPos = _originalAnchoredPos;
-        }
-        
+        // Hover 시스템은 localScale로 변경 (위치 변경하지 않음)
         UpdateVisual();
     }
 
     void Update()
     {
-        // Hover 애니메이션
+        // Hover 애니메이션 - localScale 사용 (LayoutGroup과 호환)
         if (_rectTransform != null)
         {
-            _rectTransform.anchoredPosition = Vector2.Lerp(
-                _rectTransform.anchoredPosition,
-                _targetAnchoredPos,
+            float targetScale = _isHovering ? 1.1f : 1.0f;
+            _rectTransform.localScale = Vector3.Lerp(
+                _rectTransform.localScale,
+                Vector3.one * targetScale,
                 Time.deltaTime * hoverAnimSpeed
             );
         }
@@ -89,6 +99,13 @@ public class CardSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IPoin
     {
         // 빈 슬롯이면 무시
         if (OccupantCard == null) return;
+
+        // 카드 선택 모드일 때 (SimpleWorldManager)
+        if (SimpleWorldManager.Instance != null && SimpleWorldManager.Instance.IsSelectingCard)
+        {
+            SimpleWorldManager.Instance.OnCardSelected(this);
+            return;
+        }
 
         // 우클릭: 카드 확대
         if (eventData.button == PointerEventData.InputButton.Right)
@@ -119,15 +136,12 @@ public class CardSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IPoin
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (OccupantCard == null) return;
-
         _isHovering = true;
-        _targetAnchoredPos = _originalAnchoredPos + Vector2.up * hoverMoveDistance;
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
         _isHovering = false;
-        _targetAnchoredPos = _originalAnchoredPos;
     }
 
     /// <summary>

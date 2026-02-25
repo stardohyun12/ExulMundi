@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyData
   enemyName: "\uD6C8\uB828\uC6A9 \uD5C8\uC218\uC544\uBE44"
   sprite: {fileID: 0}
-  maxHP: 1000
+  maxHP: 100
   atk: 0
   def: 0
   atkSpeed: 0

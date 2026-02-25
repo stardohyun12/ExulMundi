@@ -133,7 +133,7 @@ public class BattleManager : MonoBehaviour
             Debug.Log("전투 승리!");
             energySystem?.StopEnergyRegen();
             OnBattleWon?.Invoke();
-            WorldManager.Instance?.OnBattleWon();
+            // WorldManager.Instance?.OnBattleWon(); // 구버전 - 사용 안함
         }
         else
         {
@@ -210,7 +210,8 @@ public class BattleManager : MonoBehaviour
     /// <summary>도주 패널티 — 난이도 증가</summary>
     public void ApplyDifficultyPenalty(int amount)
     {
-        // WorldManager가 전역 difficulty를 관리하므로 위임
-        WorldManager.Instance?.IncreaseDifficulty(amount);
+        // 구버전 WorldManager - 사용 안함
+        // WorldManager.Instance?.IncreaseDifficulty(amount);
+        Debug.Log($"난이도 증가 (미구현): +{amount}");
     }
 }

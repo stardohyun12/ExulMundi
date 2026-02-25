@@ -36,19 +36,8 @@ public class CardSwipe : MonoBehaviour
 
     void OnSwipeDown()
     {
-        if (WorldManager.Instance == null) return;
-
-        // 전투 중이면 도주
-        if (BattleManager.Instance != null && BattleManager.Instance.IsBattleActive)
-        {
-            Debug.Log("도주! 패널티 선택으로");
-            WorldManager.Instance.FleeFromBattle();
-        }
-        else
-        {
-            // 전투 중이 아니면 다음 세계로
-            Debug.Log("스와이프! 다음 세계로");
-            WorldManager.Instance.TransitionToNextWorld();
-        }
+        // 구버전 WorldManager - 사용 안함
+        // 스와이프 기능은 SimpleWorldManager에서 버튼으로 대체
+        Debug.Log("스와이프 기능 비활성화 (SimpleWorldManager 사용 중)");
     }
 }

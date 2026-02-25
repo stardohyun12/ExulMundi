@@ -13,9 +13,13 @@ public class PassiveCardManager : MonoBehaviour
 
     [Header("손 크기 제한")]
     [Tooltip("손에 들 수 있는 최대 카드 수")]
-    public int maxHandSize = 5;
+    public int maxHandSize = 10;
 
-    [Header("카드 슬롯 (Inspector에서 연결)")]
+    [Header("슬롯 생성")]
+    public GameObject cardSlotTemplate;     // 템플릿으로 사용할 슬롯 (씬에 있는 것)
+    public Transform handArea;              // 슬롯이 생성될 부모 (HandArea)
+
+    [Header("카드 슬롯 (동적 생성)")]
     public List<CardSlot> cardSlots = new List<CardSlot>();
 
     [Header("보유 카드 풀")]
@@ -45,16 +49,92 @@ public class PassiveCardManager : MonoBehaviour
 
     void Start()
     {
-        // 슬롯 수가 최대 손 크기와 맞는지 확인
-        if (cardSlots.Count != maxHandSize)
-        {
-            Debug.LogWarning($"카드 슬롯 수({cardSlots.Count})와 최대 손 크기({maxHandSize})가 다릅니다!");
-        }
+        // 보유 카드 개수만큼 슬롯 생성
+        CreateSlotsForCards();
 
         // 시작 시 보유 카드를 자동으로 손에 배치
         AutoFillHand();
 
         RefreshCardPool();
+        
+        // Layout 강제 리빌드
+        StartCoroutine(RebuildLayoutNextFrame());
+    }
+
+    private System.Collections.IEnumerator RebuildLayoutNextFrame()
+    {
+        yield return null; // 1프레임 대기
+        
+        if (handArea != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(handArea.GetComponent<RectTransform>());
+            Debug.Log("Layout 리빌드 완료!");
+        }
+    }
+
+    /// <summary>
+    /// 보유 카드 개수만큼 슬롯 동적 생성
+    /// </summary>
+    private void CreateSlotsForCards()
+    {
+        if (cardSlotTemplate == null || handArea == null)
+        {
+            Debug.LogError("Template 또는 HandArea가 null!");
+            return;
+        }
+
+        int cardCount = Mathf.Min(ownedCards.Count, maxHandSize);
+        if (cardCount == 0) return;
+
+        // 디버그: 현재 cardSlots 상태 출력
+        Debug.Log($"[CreateSlotsForCards] cardSlots.Count = {cardSlots.Count}");
+        for (int i = 0; i < cardSlots.Count; i++)
+        {
+            Debug.Log($"  cardSlots[{i}]: {(cardSlots[i] != null ? cardSlots[i].name : "null")}");
+        }
+
+        // 이미 슬롯이 정상 생성되어 있으면 재생성하지 않음
+        if (cardSlots.Count >= cardCount && cardSlots.Count > 0 && cardSlots[0] != null)
+        {
+            Debug.Log($"슬롯이 이미 {cardSlots.Count}개 존재 - 재생성 생략");
+            return;
+        }
+
+        Debug.Log($"슬롯 {cardCount}개 생성 시작");
+
+        cardSlotTemplate.SetActive(false);
+        cardSlots.Clear(); // 리스트 초기화
+
+        // 기존 자식 모두 삭제 (템플릿 제외)
+        List<GameObject> toDelete = new List<GameObject>();
+        foreach (Transform child in handArea)
+        {
+            if (child.gameObject != cardSlotTemplate)
+                toDelete.Add(child.gameObject);
+        }
+        foreach (var obj in toDelete)
+            DestroyImmediate(obj);
+
+        // 슬롯 생성
+        for (int i = 0; i < cardCount; i++)
+        {
+            GameObject slot = Instantiate(cardSlotTemplate, handArea);
+            slot.name = $"CardSlot{i + 1}";
+            slot.SetActive(true);
+            
+            // LayoutElement 설정
+            LayoutElement le = slot.GetComponent<LayoutElement>();
+            if (le == null) le = slot.AddComponent<LayoutElement>();
+            le.minWidth = 150;
+            le.minHeight = 200;
+            le.preferredWidth = 150;
+            le.preferredHeight = 200;
+            
+            CardSlot cs = slot.GetComponent<CardSlot>();
+            if (cs != null) cardSlots.Add(cs);
+        }
+
+        Debug.Log($"{cardSlots.Count}개 슬롯 생성 완료");
     }
 
     /// <summary>
@@ -62,17 +142,22 @@ public class PassiveCardManager : MonoBehaviour
     /// </summary>
     private void AutoFillHand()
     {
+        Debug.Log($"[AutoFillHand] 시작 - 보유 카드: {ownedCards.Count}개, 슬롯: {cardSlots.Count}개");
+        
         int slotIndex = 0;
         foreach (var card in ownedCards)
         {
             if (slotIndex >= cardSlots.Count) break;
             if (cardSlots[slotIndex] != null)
             {
+                Debug.Log($"[AutoFillHand] {card.cardName} → cardSlots[{slotIndex}] (슬롯: {cardSlots[slotIndex].name})");
                 cardSlots[slotIndex].SetCard(card);
-                Debug.Log($"{card.cardName}을(를) 슬롯 {slotIndex + 1}에 자동 배치");
+                Debug.Log($"[AutoFillHand] {card.cardName}을(를) 슬롯 {slotIndex + 1}에 배치 완료");
             }
             slotIndex++;
         }
+        
+        Debug.Log($"[AutoFillHand] 완료 - 현재 손패: {_currentHand.Count}개");
     }
 
     // ═══════════════════════════════════════

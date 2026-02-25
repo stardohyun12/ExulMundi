@@ -138,6 +138,12 @@ public class EnemyUnit : MonoBehaviour
     {
         StopAttacking();
         BattleManager.Instance?.OnEnemyDied(this);
+        
+        // SimpleWorldManager에 알림 (세계 이동)
+        if (SimpleWorldManager.Instance != null)
+        {
+            SimpleWorldManager.Instance.OnEnemyDefeated();
+        }
     }
 
     private void UpdateHPUI()
