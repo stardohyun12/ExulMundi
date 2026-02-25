@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59be4115f30fbd84ab203762b89de417, type: 3}
+  m_Name: VampiricCharm
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  cardName: "\uD761\uD608 \uBD80\uC801"
+  description: "\uC5B4\uB450\uC6B4 \uD798\uC774 \uB2F4\uAE34 \uBD80\uC801. \uC801\uC758
+    \uC0DD\uBA85\uB825\uC744 \uBE7C\uC557\uB294\uB2E4."
+  cardArt: {fileID: 0}
+  category: 2
+  rarity: 1
+  effectType: 0
+  effectValue: 0
+  effectValue2: 0
+  hitCount: 1
+  passiveEffectType: 5
+  passiveValue: 5
+  passiveValue2: 0

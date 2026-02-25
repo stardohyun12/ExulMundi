@@ -22,7 +22,7 @@ public class CardSwipe : MonoBehaviour
             isDragging = false;
 
             // 카드 드래그 중에는 스와이프 무시
-            if (PartyManager.Instance != null && PartyManager.Instance.IsDragging) return;
+            if (PassiveCardManager.Instance != null && PassiveCardManager.Instance.IsDragging) return;
 
             Vector2 endPosition = Mouse.current.position.ReadValue();
             float swipeDistance = startTouchPosition.y - endPosition.y;

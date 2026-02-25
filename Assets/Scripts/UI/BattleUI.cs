@@ -3,28 +3,32 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// 전투 UI: 동료 카드 탭, 전투 결과 표시
-/// 적 HP바는 EnemyUnit 프리팹이 자체적으로 보유
+/// 전투 UI 총괄.
+/// 주인공 HP 바 / 결과 패널 / 에너지 바 표시.
+/// 핸드 카드 UI는 HandManager가 직접 관리.
 /// </summary>
 public class BattleUI : MonoBehaviour
 {
-    [Header("동료 카드 (스킬 탭용)")]
-    public Transform companionCardParent;
-    public GameObject battleCardPrefab;
+    [Header("주인공 HP UI")]
+    public Slider          heroHPSlider;
+    public TextMeshProUGUI heroHPText;
 
     [Header("결과 UI")]
-    public GameObject resultPanel;
+    public GameObject      resultPanel;
     public TextMeshProUGUI resultText;
 
     void Start()
     {
-        if (resultPanel != null)
-            resultPanel.SetActive(false);
+        if (resultPanel != null) resultPanel.SetActive(false);
 
         if (BattleManager.Instance != null)
         {
-            BattleManager.Instance.OnBattleWon += ShowVictory;
+            BattleManager.Instance.OnBattleWon  += ShowVictory;
             BattleManager.Instance.OnBattleLost += ShowDefeat;
+
+            // 주인공 HP 이벤트 구독
+            if (BattleManager.Instance.HeroUnit != null)
+                BattleManager.Instance.HeroUnit.OnHPChanged += RefreshHeroHP;
         }
     }
 
@@ -32,70 +36,42 @@ public class BattleUI : MonoBehaviour
     {
         if (BattleManager.Instance != null)
         {
-            BattleManager.Instance.OnBattleWon -= ShowVictory;
+            BattleManager.Instance.OnBattleWon  -= ShowVictory;
             BattleManager.Instance.OnBattleLost -= ShowDefeat;
+
+            if (BattleManager.Instance.HeroUnit != null)
+                BattleManager.Instance.HeroUnit.OnHPChanged -= RefreshHeroHP;
         }
     }
 
-    /// <summary>
-    /// 전투 시작 시 UI 초기화
-    /// </summary>
+    /// <summary>전투 시작 시 호출</summary>
     public void InitBattleUI()
     {
-        CreateBattleCards();
-
-        if (resultPanel != null)
-            resultPanel.SetActive(false);
+        if (resultPanel != null) resultPanel.SetActive(false);
+        RefreshHeroHP(BattleManager.Instance?.HeroUnit);
     }
 
-    /// <summary>
-    /// 동료 카드 탭 시 스킬 발동
-    /// </summary>
-    public void OnCompanionCardTapped(CompanionUnit unit)
+    private void RefreshHeroHP(HeroUnit hero)
     {
-        if (unit == null || !unit.IsAlive) return;
-        bool used = unit.TryUseSkill();
-        if (!used)
-            Debug.Log("스킬 쿨다운 중...");
-    }
-
-    private void CreateBattleCards()
-    {
-        if (battleCardPrefab == null || companionCardParent == null) return;
-        if (BattleManager.Instance == null) return;
-
-        foreach (Transform child in companionCardParent)
-            Destroy(child.gameObject);
-
-        foreach (var companion in BattleManager.Instance.companionUnits)
+        if (hero == null) return;
+        if (heroHPSlider != null)
         {
-            GameObject card = Instantiate(battleCardPrefab, companionCardParent);
-
-            CardDisplay display = card.GetComponent<CardDisplay>();
-            if (display != null)
-            {
-                display.Setup(companion.Data);
-                display.LinkUnit(companion);
-            }
-
-            Button btn = card.GetComponent<Button>();
-            if (btn != null)
-            {
-                CompanionUnit unit = companion;
-                btn.onClick.AddListener(() => OnCompanionCardTapped(unit));
-            }
+            heroHPSlider.maxValue = hero.MaxHP;
+            heroHPSlider.value    = hero.CurrentHP;
         }
+        if (heroHPText != null)
+            heroHPText.text = $"{hero.CurrentHP} / {hero.MaxHP}";
     }
 
     private void ShowVictory()
     {
         if (resultPanel != null) resultPanel.SetActive(true);
-        if (resultText != null) resultText.text = "승리!";
+        if (resultText  != null) resultText.text = "승리!";
     }
 
     private void ShowDefeat()
     {
         if (resultPanel != null) resultPanel.SetActive(true);
-        if (resultText != null) resultText.text = "패배...";
+        if (resultText  != null) resultText.text = "패배...";
     }
 }

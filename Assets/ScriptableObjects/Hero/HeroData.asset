@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3eaa85b2ac7439843a19010227d0a2be, type: 3}
+  m_Name: HeroData
+  m_EditorClassIdentifier: Assembly-CSharp::HeroData
+  heroName: "\uC8FC\uC778\uACF5"
+  heroSprite: {fileID: 0}
+  baseHP: 100
+  baseATK: 10
+  baseDEF: 2
+  attackInterval: 1.5
+  startingDeck:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}

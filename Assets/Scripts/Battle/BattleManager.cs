@@ -1,31 +1,49 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// 전투 흐름 총괄 관리자.
+/// 주인공 1명 vs 적 자동 전투. 플레이어는 카드로 개입.
+/// </summary>
 public class BattleManager : MonoBehaviour
 {
     public static BattleManager Instance { get; private set; }
 
-    [Header("파티")]
-    public List<CompanionUnit> companionUnits = new List<CompanionUnit>();
+    // ───────────────────────────────────────
+    // Inspector
+    // ───────────────────────────────────────
+
+    [Header("주인공")]
+    public HeroData     heroData;
+    public HeroUnit     HeroUnit;       // 씬에 배치된 HeroUnit 오브젝트
 
     [Header("적")]
-    public List<EnemyUnit> enemyUnits = new List<EnemyUnit>();
+    public List<EnemyUnit> enemyUnits = new();
+    public GameObject      enemyUnitPrefab;
+    public Transform       enemySpawnArea;
 
-    [Header("프리팹")]
-    public GameObject companionUnitPrefab;
-    public GameObject enemyUnitPrefab;
-
-    [Header("스폰 위치")]
-    public Transform companionSpawnArea;
-    public Transform enemySpawnArea;
+    [Header("에너지 / 핸드")]
+    public EnergySystem energySystem;
+    public HandManager  handManager;
 
     [Header("UI")]
     public BattleUI battleUI;
 
-    public bool IsBattleActive { get; private set; }
+    // ───────────────────────────────────────
+    // 런타임 상태
+    // ───────────────────────────────────────
+
+    public bool      IsBattleActive { get; private set; }
+
+    /// <summary>현재 살아있는 적 (카드 효과 타겟)</summary>
+    public EnemyUnit CurrentEnemy => enemyUnits.Count > 0 ? enemyUnits[0] : null;
 
     public event System.Action OnBattleWon;
     public event System.Action OnBattleLost;
+
+    // ───────────────────────────────────────
+    // 초기화
+    // ───────────────────────────────────────
 
     void Awake()
     {
@@ -33,53 +51,77 @@ public class BattleManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    /// <summary>
-    /// 세계 데이터 기반으로 전투 시작
-    /// </summary>
-    public void StartBattle(WorldData world)
+    void Start()
     {
-        ClearBattlefield();
-
-        // 적 생성
-        if (world.enemies != null)
-        {
-            for (int i = 0; i < world.enemies.Length; i++)
-            {
-                SpawnEnemy(world.enemies[i], i);
-            }
-        }
-
-        // 동료 유닛 활성화 및 타겟 설정
-        foreach (var companion in companionUnits)
-        {
-            companion.gameObject.SetActive(true);
-            companion.ResetForBattle();
-        }
-
-        AssignTargets();
-        IsBattleActive = true;
-
-        // 전투 UI 초기화
-        if (battleUI != null)
-            battleUI.InitBattleUI();
+        // HeroUnit 사망 이벤트 구독
+        if (HeroUnit != null)
+            HeroUnit.OnHeroDied += OnHeroDied;
     }
 
-    /// <summary>
-    /// 전투 종료 (도주 또는 결과 처리 시)
-    /// </summary>
+    void OnDestroy()
+    {
+        if (HeroUnit != null)
+            HeroUnit.OnHeroDied -= OnHeroDied;
+    }
+
+    // ═══════════════════════════════════════
+    // 전투 시작 / 종료
+    // ═══════════════════════════════════════
+
+    /// <summary>WorldData 기반으로 전투 시작</summary>
+    public void StartBattle(WorldData world)
+    {
+        ClearEnemies();
+
+        // 주인공 준비
+        if (HeroUnit != null)
+        {
+            if (heroData != null && !HeroUnit.IsAlive)
+                HeroUnit.Initialize(heroData);
+            else
+                HeroUnit.ResetForBattle();
+        }
+
+        // 적 스폰 (난이도 배율 적용)
+        float scaleMult = 1f + (world.difficulty - 1) * 0.15f;
+        if (world.enemies != null)
+            foreach (var data in world.enemies)
+                SpawnEnemy(data, scaleMult);
+
+        // 타겟 할당
+        AssignTargets();
+
+        // 에너지 시작
+        energySystem?.StartEnergyRegen();
+
+        // 핸드 구성 (HeroData의 시작 덱 사용)
+        if (heroData != null && heroData.startingDeck != null)
+            handManager?.SetupAndDraw(heroData.startingDeck);
+
+        IsBattleActive = true;
+
+        if (battleUI != null)
+            battleUI.InitBattleUI();
+
+        Debug.Log($"전투 시작 — 세계: {world.worldName} (난이도 {world.difficulty})");
+    }
+
     public void EndBattle()
     {
         IsBattleActive = false;
 
-        foreach (var companion in companionUnits)
-            companion.StopAttacking();
-        foreach (var enemy in enemyUnits)
-            enemy.StopAttacking();
+        HeroUnit?.StopAttacking();
+        foreach (var e in enemyUnits)
+            e.StopAttacking();
+
+        energySystem?.StopEnergyRegen();
     }
 
-    /// <summary>
-    /// 적 사망 시 호출
-    /// </summary>
+    // ═══════════════════════════════════════
+    // 전투 이벤트
+    // ═══════════════════════════════════════
+
+    /// <summary>적 사망 시 BattleManager로 전달</summary>
     public void OnEnemyDied(EnemyUnit enemy)
     {
         enemyUnits.Remove(enemy);
@@ -87,82 +129,88 @@ public class BattleManager : MonoBehaviour
 
         if (enemyUnits.Count == 0 && IsBattleActive)
         {
-            // 적 전멸 — 승리
             IsBattleActive = false;
             Debug.Log("전투 승리!");
+            energySystem?.StopEnergyRegen();
             OnBattleWon?.Invoke();
-            WorldManager.Instance.OnBattleWon();
+            WorldManager.Instance?.OnBattleWon();
         }
         else
         {
-            // 남은 적에게 타겟 재설정
             AssignTargets();
         }
     }
 
-    /// <summary>
-    /// 동료 사망 시 호출
-    /// </summary>
-    public void OnCompanionDied(CompanionUnit companion)
+    /// <summary>주인공 사망 시 호출 (HeroUnit.OnHeroDied 이벤트에서)</summary>
+    public void OnHeroDied(HeroUnit hero)
     {
-        companionUnits.Remove(companion);
-        companion.gameObject.SetActive(false);
-
-        if (companionUnits.Count == 0 && IsBattleActive)
-        {
-            // 전멸 — 패배
-            IsBattleActive = false;
-            Debug.Log("전투 패배!");
-            OnBattleLost?.Invoke();
-        }
+        if (!IsBattleActive) return;
+        IsBattleActive = false;
+        Debug.Log("전투 패배!");
+        energySystem?.StopEnergyRegen();
+        OnBattleLost?.Invoke();
     }
 
-    /// <summary>
-    /// 파티에 동료 추가 (PartyManager에서 호출)
-    /// </summary>
-    public void AddCompanionToParty(CompanionData data)
-    {
-        if (companionUnitPrefab == null || companionSpawnArea == null) return;
+    // ═══════════════════════════════════════
+    // 내부 유틸
+    // ═══════════════════════════════════════
 
-        GameObject go = Instantiate(companionUnitPrefab, companionSpawnArea);
-        CompanionUnit unit = go.GetComponent<CompanionUnit>();
-        unit.Initialize(data);
-        companionUnits.Add(unit);
-    }
-
-    private void SpawnEnemy(EnemyData data, int index)
+    private void SpawnEnemy(EnemyData data, float scaleMult)
     {
         if (enemyUnitPrefab == null || enemySpawnArea == null) return;
 
-        GameObject go = Instantiate(enemyUnitPrefab, enemySpawnArea);
-        EnemyUnit unit = go.GetComponent<EnemyUnit>();
-        unit.Initialize(data);
+        GameObject go   = Instantiate(enemyUnitPrefab, enemySpawnArea);
+        EnemyUnit  unit = go.GetComponent<EnemyUnit>();
+
+        // 난이도 배율 적용을 위한 임시 래퍼 (ScriptableObject 직접 수정 안 함)
+        var scaledData = ScriptableObject.CreateInstance<EnemyData>();
+        scaledData.enemyName   = data.enemyName;
+        scaledData.sprite      = data.sprite;
+        scaledData.maxHP       = Mathf.RoundToInt(data.maxHP  * scaleMult);
+        scaledData.atk         = Mathf.RoundToInt(data.atk    * scaleMult);
+        scaledData.def         = data.def;
+        scaledData.atkSpeed    = data.atkSpeed;
+        scaledData.behaviorType = data.behaviorType;
+        scaledData.foodReward  = data.foodReward;
+        scaledData.goldReward  = data.goldReward;
+
+        unit.Initialize(scaledData);
         enemyUnits.Add(unit);
     }
 
     private void AssignTargets()
     {
-        // 동료 → 첫 번째 살아있는 적 공격
-        foreach (var companion in companionUnits)
-        {
-            if (enemyUnits.Count > 0)
-                companion.SetTarget(enemyUnits[0]);
-        }
+        // 주인공 → 첫 번째 적
+        if (HeroUnit != null && enemyUnits.Count > 0)
+            HeroUnit.SetTarget(enemyUnits[0]);
 
-        // 적 → 랜덤 동료 공격
-        foreach (var enemy in enemyUnits)
-        {
-            if (companionUnits.Count > 0)
-                enemy.SetTarget(companionUnits[Random.Range(0, companionUnits.Count)]);
-        }
+        // 모든 적 → 주인공
+        foreach (var e in enemyUnits)
+            if (HeroUnit != null)
+                e.SetTarget(HeroUnit);
     }
 
-    private void ClearBattlefield()
+    private void ClearEnemies()
     {
-        foreach (var enemy in enemyUnits)
-        {
-            if (enemy != null) Destroy(enemy.gameObject);
-        }
+        foreach (var e in enemyUnits)
+            if (e != null) Destroy(e.gameObject);
         enemyUnits.Clear();
+    }
+
+    // ═══════════════════════════════════════
+    // 하위 호환 (CompanionUnit 등 구형 참조 대비 — 제거 예정)
+    // ═══════════════════════════════════════
+
+    /// <summary>[Deprecated] CompanionUnit.TakeDamage에서 호출 — 현재 무시</summary>
+    public void OnCompanionDied(CompanionUnit companion) { }
+
+    /// <summary>도주 패널티 — HP 감소</summary>
+    public void ApplyHPPenalty(int amount) => HeroUnit?.ApplyHPPenalty(amount);
+
+    /// <summary>도주 패널티 — 난이도 증가</summary>
+    public void ApplyDifficultyPenalty(int amount)
+    {
+        // WorldManager가 전역 difficulty를 관리하므로 위임
+        WorldManager.Instance?.IncreaseDifficulty(amount);
     }
 }

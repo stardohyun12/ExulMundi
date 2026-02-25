@@ -106,16 +106,6 @@ public class PartyManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 파티를 BattleManager에 등록
-    /// </summary>
-    public void DeployParty()
-    {
-        if (BattleManager.Instance == null) return;
-        foreach (var companion in GetPartyData())
-            BattleManager.Instance.AddCompanionToParty(companion);
-    }
-
-    /// <summary>
     /// 랜덤 동료 1명을 파티에서 제거 (패널티용)
     /// </summary>
     public CompanionData RemoveRandomFromParty()

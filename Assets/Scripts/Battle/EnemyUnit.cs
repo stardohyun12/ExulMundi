@@ -3,82 +3,145 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// 런타임 적 인스턴스. 자동 공격 로직 및 자체 UI 갱신.
+/// 런타임 적 인스턴스. 자동 공격 + 행동 패턴 + DEF 지원.
 /// </summary>
 public class EnemyUnit : MonoBehaviour
 {
     public EnemyData Data { get; private set; }
 
-    public int CurrentHP { get; private set; }
-    public int MaxHP => Data != null ? Data.maxHP : 0;
-    public bool IsAlive => CurrentHP > 0;
+    public int  CurrentHP => _currentHP;
+    public int  MaxHP     => Data != null ? Data.maxHP : 0;
+    public bool IsAlive   => _currentHP > 0;
 
     [Header("UI 참조")]
-    [SerializeField] private Image enemyImage;
+    [SerializeField] private Image           enemyImage;
     [SerializeField] private TextMeshProUGUI nameText;
-    [SerializeField] private Slider hpSlider;
+    [SerializeField] private Slider          hpSlider;
 
-    private float attackTimer;
-    private bool isAttacking;
-    private CompanionUnit target;
+    private int       _currentHP;
+    private int       _currentDef;      // 런타임 DEF (Defender 패턴용 임시 버프 포함)
+    private float     _attackTimer;
+    private bool      _isAttacking;
+    private HeroUnit  _target;
+
+    // Enrager 패턴
+    private bool _enraged;
+
+    // Defender 패턴 — 주기적 방어막
+    private float _defenderTimer;
+    private const float DefenderCycleTime = 5f;
+    private const int   DefenderBonusDef  = 10;
+    private const float DefenderDuration  = 2f;
+    private float _defenderBonusTimer;
 
     public void Initialize(EnemyData data)
     {
-        Data = data;
-        CurrentHP = data.maxHP;
+        Data        = data;
+        _currentHP  = data.maxHP;
+        _currentDef = data.def;
+        _enraged    = false;
+        _isAttacking = true;
 
         if (enemyImage != null) enemyImage.sprite = data.sprite;
-        if (nameText != null) nameText.text = data.enemyName;
-        if (hpSlider != null)
+        if (nameText   != null) nameText.text     = data.enemyName;
+        if (hpSlider   != null)
         {
             hpSlider.maxValue = data.maxHP;
-            hpSlider.value = data.maxHP;
+            hpSlider.value    = data.maxHP;
         }
-
-        isAttacking = true;
     }
 
-    public void SetTarget(CompanionUnit companion)
-    {
-        target = companion;
-    }
+    public void SetTarget(HeroUnit hero) => _target = hero;
 
     void Update()
     {
-        if (!isAttacking || Data == null) return;
+        if (!_isAttacking || Data == null) return;
 
-        attackTimer += Time.deltaTime;
-        float attackInterval = Data.atkSpeed > 0 ? 1f / Data.atkSpeed : 1f;
-        if (attackTimer >= attackInterval)
+        TickBehavior();
+
+        _attackTimer += Time.deltaTime;
+        float interval = Data.atkSpeed > 0 ? 1f / Data.atkSpeed : 1f;
+        if (_attackTimer >= interval)
         {
-            attackTimer = 0f;
+            _attackTimer = 0f;
             PerformAttack();
+        }
+    }
+
+    private void TickBehavior()
+    {
+        // Enrager — HP 50% 이하 시 분노 (1회만)
+        if (!_enraged && Data.behaviorType == EnemyBehaviorType.Enrager
+            && _currentHP <= MaxHP * 0.5f)
+        {
+            _enraged = true;
+            Debug.Log($"{Data.enemyName} 분노!");
+        }
+
+        // Defender — 주기적 방어막
+        if (Data.behaviorType == EnemyBehaviorType.Defender)
+        {
+            _defenderTimer += Time.deltaTime;
+            if (_defenderTimer >= DefenderCycleTime)
+            {
+                _defenderTimer   = 0f;
+                _defenderBonusTimer = DefenderDuration;
+                Debug.Log($"{Data.enemyName} 방어막 발동!");
+            }
+
+            if (_defenderBonusTimer > 0)
+                _defenderBonusTimer -= Time.deltaTime;
         }
     }
 
     private void PerformAttack()
     {
-        if (target == null || !target.IsAlive) return;
-        target.TakeDamage(Data.atk);
-        Debug.Log($"{Data.enemyName} 공격 → {target.Data.companionName} ({Data.atk} 데미지)");
+        if (_target == null || !_target.IsAlive) return;
+
+        int atk = Data.atk;
+
+        // Enrager 분노 보정
+        if (_enraged)
+            atk = Mathf.RoundToInt(atk * 1.5f);
+
+        _target.TakeDamage(atk);
     }
 
+    /// <summary>일반 데미지 — DEF 적용</summary>
     public void TakeDamage(int damage)
     {
         if (!IsAlive) return;
-        CurrentHP = Mathf.Max(0, CurrentHP - damage);
 
-        if (hpSlider != null) hpSlider.value = CurrentHP;
+        int effectiveDef = _currentDef +
+            (Data.behaviorType == EnemyBehaviorType.Defender && _defenderBonusTimer > 0
+                ? DefenderBonusDef : 0);
 
-        if (!IsAlive)
-        {
-            StopAttacking();
-            BattleManager.Instance.OnEnemyDied(this);
-        }
+        int dmg = Mathf.Max(0, damage - effectiveDef);
+        _currentHP = Mathf.Max(0, _currentHP - dmg);
+        UpdateHPUI();
+
+        if (!IsAlive) OnDied();
     }
 
-    public void StopAttacking()
+    /// <summary>관통 데미지 — DEF 무시</summary>
+    public void TakeDamageIgnoreDef(int damage)
     {
-        isAttacking = false;
+        if (!IsAlive) return;
+        _currentHP = Mathf.Max(0, _currentHP - damage);
+        UpdateHPUI();
+        if (!IsAlive) OnDied();
+    }
+
+    public void StopAttacking() => _isAttacking = false;
+
+    private void OnDied()
+    {
+        StopAttacking();
+        BattleManager.Instance?.OnEnemyDied(this);
+    }
+
+    private void UpdateHPUI()
+    {
+        if (hpSlider != null) hpSlider.value = _currentHP;
     }
 }
