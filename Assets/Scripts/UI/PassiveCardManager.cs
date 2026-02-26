@@ -49,27 +49,17 @@ public class PassiveCardManager : MonoBehaviour
 
     void Start()
     {
-        // 보유 카드 개수만큼 슬롯 생성
         CreateSlotsForCards();
-
-        // 시작 시 보유 카드를 자동으로 손에 배치
         AutoFillHand();
-
         RefreshCardPool();
-        
-        // Layout 강제 리빌드
         StartCoroutine(RebuildLayoutNextFrame());
     }
 
     private System.Collections.IEnumerator RebuildLayoutNextFrame()
     {
-        yield return null; // 1프레임 대기
-        
-        if (handArea != null)
-        {
-            LayoutRebuilder.ForceRebuildLayoutImmediate(handArea.GetComponent<RectTransform>());
-            Debug.Log("Layout 리빌드 완료!");
-        }
+        yield return null;
+        RefreshLayoutSpacing();
+        Debug.Log("Layout 리빌드 완료!");
     }
 
     /// <summary>
@@ -233,9 +223,57 @@ public class PassiveCardManager : MonoBehaviour
         }
 
         slot.Clear();
-
-        // 시너지 재계산
         RecalculateSynergies();
+    }
+
+    /// <summary>
+    /// 슬롯 GameObject를 삭제하고 카드 개수에 맞춰 간격 재조정 (버리기용)
+    /// </summary>
+    public void RemoveSlotAndCard(CardSlot slot)
+    {
+        if (slot == null) return;
+
+        CardData card = slot.OccupantCard;
+        if (card != null) _currentHand.Remove(card);
+
+        cardSlots.Remove(slot);
+        Destroy(slot.gameObject);
+
+        StartCoroutine(RefreshSpacingNextFrame());
+        RecalculateSynergies();
+    }
+
+    private System.Collections.IEnumerator RefreshSpacingNextFrame()
+    {
+        yield return null;
+        RefreshLayoutSpacing();
+    }
+
+    /// <summary>
+    /// 남은 카드 개수에 따라 HorizontalLayoutGroup spacing 재계산
+    /// </summary>
+    public void RefreshLayoutSpacing()
+    {
+        if (handArea == null) return;
+
+        var hlg = handArea.GetComponent<HorizontalLayoutGroup>();
+        var rt  = handArea.GetComponent<RectTransform>();
+        if (hlg == null || rt == null) return;
+
+        int count = cardSlots.Count;
+        if (count == 0) return;
+
+        const float cardWidth = 150f;
+        float padding     = hlg.padding.left + hlg.padding.right;
+        float areaWidth   = rt.rect.width;
+        float usedByCards = cardWidth * count;
+        float freeSpace   = areaWidth - padding - usedByCards;
+
+        hlg.spacing = count > 1
+            ? Mathf.Clamp(freeSpace / (count - 1), 8f, 120f)
+            : 0f;
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
     }
 
     // ═══════════════════════════════════════
@@ -276,20 +314,65 @@ public class PassiveCardManager : MonoBehaviour
     // ═══════════════════════════════════════
 
     /// <summary>
-    /// 새 카드를 획득 (보유 카드 풀에 추가)
+    /// 새 카드를 획득 — ownedCards에 추가하고 슬롯도 생성
     /// </summary>
     public void AcquireCard(CardData card)
     {
         if (card == null) return;
-        if (ownedCards.Contains(card))
-        {
-            Debug.LogWarning($"{card.cardName}은 이미 보유 중입니다.");
-            return;
-        }
 
         ownedCards.Add(card);
         Debug.Log($"카드 획득: {card.cardName}");
+
+        // 손에 자리가 있으면 바로 슬롯 생성 후 배치
+        if (cardSlots.Count < maxHandSize)
+            AddCardSlot(card);
+
         RefreshCardPool();
+    }
+
+    /// <summary>
+    /// 슬롯 1개를 동적으로 추가하고 card를 배치
+    /// </summary>
+    private void AddCardSlot(CardData card)
+    {
+        if (cardSlotTemplate == null || handArea == null)
+        {
+            Debug.LogError("[PassiveCardManager] cardSlotTemplate 또는 handArea가 null입니다! Inspector에서 연결하세요.");
+            return;
+        }
+
+        // 비활성 템플릿에서 복제
+        bool wasActive = cardSlotTemplate.activeSelf;
+        cardSlotTemplate.SetActive(false);
+
+        GameObject slotGO = Instantiate(cardSlotTemplate, handArea);
+        slotGO.name = $"CardSlot{cardSlots.Count + 1}";
+        slotGO.SetActive(true);
+
+        cardSlotTemplate.SetActive(wasActive);
+
+        LayoutElement le = slotGO.GetComponent<LayoutElement>();
+        if (le == null) le = slotGO.AddComponent<LayoutElement>();
+        le.minWidth        = 150;
+        le.minHeight       = 200;
+        le.preferredWidth  = 150;
+        le.preferredHeight = 200;
+
+        CardSlot cs = slotGO.GetComponent<CardSlot>();
+        if (cs != null)
+        {
+            cardSlots.Add(cs);
+
+            // OccupantCard를 직접 설정하고 currentHand에 추가
+            // (SetCard → PlaceCardInSlot을 거치면 중복 체크로 skip될 수 있음)
+            cs.SetCard(card);
+
+            if (!_currentHand.Contains(card))
+                _currentHand.Add(card);
+        }
+
+        StartCoroutine(RefreshSpacingNextFrame());
+        Debug.Log($"[PassiveCardManager] 슬롯 추가 완료: {card.cardName} (현재 손패 {_currentHand.Count}장)");
     }
 
     /// <summary>

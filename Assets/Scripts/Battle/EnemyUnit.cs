@@ -34,6 +34,9 @@ public class EnemyUnit : MonoBehaviour
     private const float DefenderDuration  = 2f;
     private float _defenderBonusTimer;
 
+    // 데미지 발생 이벤트 (DamageTrackerUI 구독)
+    public static event System.Action<int> OnDamageDealt;
+
     public void Initialize(EnemyData data)
     {
         Data        = data;
@@ -118,8 +121,10 @@ public class EnemyUnit : MonoBehaviour
 
         int dmg = Mathf.Max(0, damage - effectiveDef);
         _currentHP = Mathf.Max(0, _currentHP - dmg);
-        UpdateHPUI();
 
+        if (dmg > 0) OnDamageDealt?.Invoke(dmg);
+
+        UpdateHPUI();
         if (!IsAlive) OnDied();
     }
 
@@ -127,7 +132,11 @@ public class EnemyUnit : MonoBehaviour
     public void TakeDamageIgnoreDef(int damage)
     {
         if (!IsAlive) return;
-        _currentHP = Mathf.Max(0, _currentHP - damage);
+        int dmg = Mathf.Max(0, damage);
+        _currentHP = Mathf.Max(0, _currentHP - dmg);
+
+        if (dmg > 0) OnDamageDealt?.Invoke(dmg);
+
         UpdateHPUI();
         if (!IsAlive) OnDied();
     }

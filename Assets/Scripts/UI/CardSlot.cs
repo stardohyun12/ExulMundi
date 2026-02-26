@@ -205,13 +205,12 @@ public class CardSlot : MonoBehaviour, IDropHandler, IPointerClickHandler, IPoin
         Debug.Log($">>> Dummy HP (사용 후): {hpAfter}");
         Debug.Log($">>> 실제 데미지: {hpBefore - hpAfter}");
 
-        // 카드 소모
-        Clear();
-
-        // PassiveCardManager에 알림
+        // 카드 소모 - 슬롯 GameObject 삭제 + 간격 재조정
         if (PassiveCardManager.Instance != null)
         {
+            PassiveCardManager.Instance.ownedCards.Remove(cardToUse);
             PassiveCardManager.Instance.OnCardUsed(cardToUse);
+            PassiveCardManager.Instance.RemoveSlotAndCard(this);
         }
 
         Debug.Log($">>> {cardToUse.cardName} 사용 완료!");

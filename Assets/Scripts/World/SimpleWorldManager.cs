@@ -28,13 +28,17 @@ public class SimpleWorldManager : MonoBehaviour
     [Header("UI")]
     public TextMeshProUGUI worldInfoText;
     public Button skipWorldButton;
-    public GameObject cardSelectPanel;  // 카드 선택 패널
-    public TextMeshProUGUI selectPromptText;  // 안내 텍스트
+    public GameObject cardSelectPanel;
+    public TextMeshProUGUI selectPromptText;
+    public CardDiscardUI cardDiscardUI;
+
+    [Header("카드 보상")]
+    public CardData[] cardPool;             // 보상으로 제시될 카드 풀
+    public CardRewardUI cardRewardUI;       // 보상 UI 직접 참조
 
     private int _currentWorldIndex = 0;
     private int _worldLevel = 1;
     private bool _isSelectingCard = false;
-    private bool _payWithCard = false;
 
     void Awake()
     {
@@ -62,14 +66,13 @@ public class SimpleWorldManager : MonoBehaviour
         _currentWorldIndex = Random.Range(0, worldColors.Length);
         
         if (mainCamera != null)
-        {
             mainCamera.backgroundColor = worldColors[_currentWorldIndex];
-        }
 
         if (worldInfoText != null)
-        {
             worldInfoText.text = $"{GetWorldName(_currentWorldIndex)} Lv.{_worldLevel}";
-        }
+
+        // 세계 이동 시 누적 데미지 초기화
+        DamageTrackerUI.Instance?.ResetTotal();
 
         RespawnEnemy();
 
@@ -78,59 +81,56 @@ public class SimpleWorldManager : MonoBehaviour
 
     private void RespawnEnemy()
     {
-        if (testBattleStarter != null && testBattleStarter.dummy != null)
+        if (battleManager == null || testBattleStarter == null)
         {
-            var dummyData = testBattleStarter.dummyData;
-            if (dummyData != null)
-            {
-                int scaledHP = Mathf.RoundToInt(testBattleStarter.dummyMaxHP * Mathf.Pow(1.5f, _worldLevel - 1));
-                testBattleStarter.dummy.Initialize(dummyData);
-                
-                System.Reflection.FieldInfo hpField = typeof(EnemyUnit).GetField("_currentHP", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                if (hpField != null)
-                {
-                    hpField.SetValue(testBattleStarter.dummy, scaledHP);
-                }
-                
-                Debug.Log($"적 재생성: HP {scaledHP}");
-            }
+            Debug.LogError("[SimpleWorldManager] battleManager 또는 testBattleStarter가 null입니다!");
+            return;
         }
+
+        var dummyData = testBattleStarter.dummyData;
+        if (dummyData == null)
+        {
+            Debug.LogError("[SimpleWorldManager] dummyData가 null입니다!");
+            return;
+        }
+
+        int scaledHP = Mathf.RoundToInt(
+            dummyData.maxHP * Mathf.Pow(1.5f, _worldLevel - 1));
+
+        // BattleManager를 통해 새 적을 스폰하고 전투 재시작
+        battleManager.SpawnAndStartBattle(dummyData, scaledHP);
     }
 
     public void OnEnemyDefeated()
     {
-        Debug.Log("적 처치! 다음 세계로...");
+        Debug.Log("적 처치! 카드 보상 선택...");
         _worldLevel++;
-        Invoke(nameof(LoadNextWorld), 1.5f);
+        Invoke(nameof(ShowCardReward), 1.0f);
+    }
+
+    private void ShowCardReward()
+    {
+        if (cardRewardUI != null && cardPool != null && cardPool.Length > 0)
+            cardRewardUI.Show(cardPool, LoadNextWorld);
+        else
+            LoadNextWorld();
     }
 
     public void SkipWorld()
     {
-        _payWithCard = Random.value > 0.5f;
-
-        if (_payWithCard)
+        // 카드가 있으면 항상 카드 버리기 선택
+        if (PassiveCardManager.Instance != null)
         {
-            if (PassiveCardManager.Instance != null)
+            var hand = PassiveCardManager.Instance.GetCurrentHand();
+            if (hand.Count > 0)
             {
-                var hand = PassiveCardManager.Instance.GetCurrentHand();
-                if (hand.Count > 0)
-                {
-                    // 카드 선택 UI 표시
-                    ShowCardSelectPanel();
-                    return;
-                }
-                else
-                {
-                    PayWithHP();
-                }
+                ShowCardSelectPanel();
+                return;
             }
         }
-        else
-        {
-            PayWithHP();
-        }
 
+        // 카드가 없으면 HP 지불
+        PayWithHP();
         LoadNextWorld();
     }
 
@@ -147,54 +147,71 @@ public class SimpleWorldManager : MonoBehaviour
         {
             selectPromptText.text = "버릴 카드를 선택하세요";
         }
-
-        Debug.Log("카드 선택 모드 활성화");
     }
 
     /// <summary>
-    /// CardSlot에서 호출 - 선택된 카드 버리기
+    /// CardSlot 클릭 → CardDiscardUI에 위임
     /// </summary>
     public void OnCardSelected(CardSlot slot)
     {
         if (!_isSelectingCard) return;
         if (slot == null || slot.OccupantCard == null) return;
 
-        CardData cardToRemove = slot.OccupantCard;
-        
-        // 카드 제거
-        slot.Clear();
-        
-        // PassiveCardManager의 ownedCards에서도 제거
-        if (PassiveCardManager.Instance != null)
-        {
-            PassiveCardManager.Instance.ownedCards.Remove(cardToRemove);
-            PassiveCardManager.Instance.OnCardUsed(cardToRemove);
-        }
-        
-        Debug.Log($"카드 버림: {cardToRemove.cardName} (보유 카드에서 제거됨)");
+        cardSelectPanel?.SetActive(false);
 
-        // 선택 모드 종료
+        if (cardDiscardUI != null)
+        {
+            cardDiscardUI.ShowForDiscard(slot);
+        }
+        else
+        {
+            Debug.LogError("[SimpleWorldManager] cardDiscardUI가 연결되지 않았습니다! Inspector에서 연결하세요.");
+            PerformDirectDiscard(slot);
+        }
+    }
+
+    /// <summary>
+    /// CardDiscardUI에서 버리기 완료 시 호출
+    /// </summary>
+    public void OnDiscardComplete()
+    {
         _isSelectingCard = false;
-        if (cardSelectPanel != null)
-        {
-            cardSelectPanel.SetActive(false);
-        }
-
-        // 다음 세계로
         LoadNextWorld();
     }
 
     /// <summary>
-    /// 카드 선택 취소 - HP로 대신 지불
+    /// CardDiscardUI에서 취소 시 호출 - 카드 선택 패널 복귀
+    /// </summary>
+    public void OnDiscardCancelled()
+    {
+        // 선택 모드 유지하고 패널 다시 표시
+        if (cardSelectPanel != null)
+        {
+            cardSelectPanel.SetActive(true);
+        }
+    }
+
+    private void PerformDirectDiscard(CardSlot slot)
+    {
+        CardData card = slot.OccupantCard;
+        slot.Clear();
+        if (PassiveCardManager.Instance != null)
+        {
+            PassiveCardManager.Instance.ownedCards.Remove(card);
+            PassiveCardManager.Instance.OnCardUsed(card);
+        }
+        _isSelectingCard = false;
+        cardSelectPanel?.SetActive(false);
+        LoadNextWorld();
+    }
+
+    /// <summary>
+    /// 카드 선택 취소 - HP로 대신 지불 (CancelButton에서 호출)
     /// </summary>
     public void CancelCardSelect()
     {
         _isSelectingCard = false;
-        if (cardSelectPanel != null)
-        {
-            cardSelectPanel.SetActive(false);
-        }
-
+        cardSelectPanel?.SetActive(false);
         PayWithHP();
         LoadNextWorld();
     }

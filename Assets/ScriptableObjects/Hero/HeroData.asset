@@ -16,8 +16,8 @@ MonoBehaviour:
   heroSprite: {fileID: 0}
   baseHP: 100
   baseATK: 10
-  baseDEF: 2
-  attackInterval: 1.5
+  baseDEF: 1
+  attackInterval: 3.5
   startingDeck:
   - {fileID: 0}
   - {fileID: 0}

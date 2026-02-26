@@ -162,20 +162,62 @@ public class BattleManager : MonoBehaviour
         GameObject go   = Instantiate(enemyUnitPrefab, enemySpawnArea);
         EnemyUnit  unit = go.GetComponent<EnemyUnit>();
 
-        // 난이도 배율 적용을 위한 임시 래퍼 (ScriptableObject 직접 수정 안 함)
         var scaledData = ScriptableObject.CreateInstance<EnemyData>();
-        scaledData.enemyName   = data.enemyName;
-        scaledData.sprite      = data.sprite;
-        scaledData.maxHP       = Mathf.RoundToInt(data.maxHP  * scaleMult);
-        scaledData.atk         = Mathf.RoundToInt(data.atk    * scaleMult);
-        scaledData.def         = data.def;
-        scaledData.atkSpeed    = data.atkSpeed;
+        scaledData.enemyName    = data.enemyName;
+        scaledData.sprite       = data.sprite;
+        scaledData.maxHP        = Mathf.RoundToInt(data.maxHP  * scaleMult);
+        scaledData.atk          = Mathf.RoundToInt(data.atk    * scaleMult);
+        scaledData.def          = data.def;
+        scaledData.atkSpeed     = data.atkSpeed;
         scaledData.behaviorType = data.behaviorType;
-        scaledData.foodReward  = data.foodReward;
-        scaledData.goldReward  = data.goldReward;
+        scaledData.foodReward   = data.foodReward;
+        scaledData.goldReward   = data.goldReward;
 
         unit.Initialize(scaledData);
         enemyUnits.Add(unit);
+    }
+
+    /// <summary>
+    /// 새 세계에서 적 1마리를 스폰하고 전투를 재시작.
+    /// SimpleWorldManager.RespawnEnemy()에서 호출.
+    /// </summary>
+    public void SpawnAndStartBattle(EnemyData data, int scaledHP)
+    {
+        ClearEnemies();
+
+        if (enemyUnitPrefab == null || enemySpawnArea == null)
+        {
+            Debug.LogError("[BattleManager] enemyUnitPrefab 또는 enemySpawnArea가 null입니다!");
+            return;
+        }
+
+        GameObject go   = Instantiate(enemyUnitPrefab, enemySpawnArea);
+        EnemyUnit  unit = go.GetComponent<EnemyUnit>();
+
+        var scaledData = ScriptableObject.CreateInstance<EnemyData>();
+        scaledData.enemyName    = data.enemyName;
+        scaledData.sprite       = data.sprite;
+        scaledData.maxHP        = scaledHP;
+        scaledData.atk          = data.atk;
+        scaledData.def          = data.def;
+        scaledData.atkSpeed     = data.atkSpeed;
+        scaledData.behaviorType = data.behaviorType;
+
+        unit.Initialize(scaledData);
+        enemyUnits.Add(unit);
+
+        // HeroUnit Data가 없으면 heroData로 초기화, 있으면 전투만 재개
+        if (HeroUnit != null)
+        {
+            if (HeroUnit.Data == null && heroData != null)
+                HeroUnit.Initialize(heroData);
+        }
+
+        // 타겟 재할당 → HeroUnit이 새 적을 자동으로 공격 시작
+        AssignTargets();
+        IsBattleActive = true;
+
+        Debug.Log($"[BattleManager] 새 적 스폰: {data.enemyName} HP:{scaledHP}");
     }
 
     private void AssignTargets()

@@ -27,50 +27,36 @@ public class TestBattleStarter : MonoBehaviour
 
     void Start()
     {
-        // BattleManager를 전투 활성화 상태로 설정
+        // SimpleWorldManager가 있으면 전투 초기화는 위임 — BattleManager 등록 생략
+        if (SimpleWorldManager.Instance != null)
+        {
+            if (hero != null) SetupTestHero();
+            return;
+        }
+
+        // ── SimpleWorldManager 없는 단독 테스트용 ──
         if (BattleManager.Instance != null)
         {
-            // 리플렉션으로 IsBattleActive를 true로 설정
             var prop = typeof(BattleManager).GetProperty("IsBattleActive");
             if (prop != null && prop.CanWrite)
-            {
                 prop.SetValue(BattleManager.Instance, true);
-            }
             else
-            {
-                // property가 private set이면 backing field 설정
                 SetPrivateField(BattleManager.Instance, "<IsBattleActive>k__BackingField", true);
-            }
-            Debug.Log("BattleManager 전투 활성화!");
 
-            // HeroUnit 등록
             if (hero != null)
-            {
                 BattleManager.Instance.HeroUnit = hero;
-                Debug.Log("BattleManager에 HeroUnit 등록 완료!");
-            }
         }
 
         if (hero != null && dummy != null)
         {
-            // 테스트용 데이터 직접 설정
             SetupTestHero();
             SetupTestDummy();
 
-            // BattleManager에 Dummy 등록
-            if (BattleManager.Instance != null)
+            if (BattleManager.Instance != null &&
+                !BattleManager.Instance.enemyUnits.Contains(dummy))
             {
-                // enemyUnits 리스트에 직접 추가
-                if (!BattleManager.Instance.enemyUnits.Contains(dummy))
-                {
-                    BattleManager.Instance.enemyUnits.Add(dummy);
-                    Debug.Log($"BattleManager에 Dummy 등록 완료! CurrentEnemy: {BattleManager.Instance.CurrentEnemy?.name}");
-                }
-            }
-
-            if (damageText != null)
-            {
-                damageText.text = "전투 시작! 카드를 클릭하여 사용하세요.\n주인공이 자동으로 허수아비를 공격합니다.";
+                BattleManager.Instance.enemyUnits.Add(dummy);
+                Debug.Log($"BattleManager에 Dummy 등록 완료! CurrentEnemy: {BattleManager.Instance.CurrentEnemy?.name}");
             }
         }
         else
