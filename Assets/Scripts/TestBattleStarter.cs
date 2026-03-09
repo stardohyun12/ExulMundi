@@ -1,3 +1,4 @@
+#if false // DEPRECATED — 삭제 예정
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -173,3 +174,5 @@ public class TestBattleStarter : MonoBehaviour
         }
     }
 }
+#endif
+

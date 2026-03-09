@@ -1,3 +1,4 @@
+#if false // DEPRECATED — 삭제 예정
 using UnityEngine;
 using UnityEditor;
 using System.IO;
@@ -134,3 +135,5 @@ public static class ExulMundiSetup
         Debug.Log($"✅ {fileName}.asset 생성");
     }
 }
+#endif
+

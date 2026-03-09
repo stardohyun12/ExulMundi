@@ -1,3 +1,4 @@
+#if false // DEPRECATED — 삭제 예정
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -73,3 +74,5 @@ public class PenaltyManager : MonoBehaviour
         if (penaltyText2 != null) penaltyText2.text = $"난이도 +{difficultyIncreaseAmount}";
     }
 }
+#endif
+
