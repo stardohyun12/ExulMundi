@@ -94,6 +94,9 @@ public class GunWeapon : WeaponBase
 
     private void Shoot()
     {
+        NotifyActivated();
+        NotifyCooldownStarted(AttackInterval);
+
         if (bulletPrefab == null) return;
 
         Transform target  = FindNearestEnemy();

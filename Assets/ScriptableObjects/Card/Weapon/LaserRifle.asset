@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59be4115f30fbd84ab203762b89de417, type: 3}
+  m_Name: LaserRifle
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  cardName: "\uB808\uC774\uC800 \uB77C\uC774\uD50C"
+  description: "\uACE0\uC18D \uAD11\uC120\uC744 \uC5F0\uC0AC\uD558\uB294 \uBBF8\uB798\uD615
+    \uCD1D\uAE30."
+  artwork: {fileID: 0}
+  rarity: 0
+  cardType: 1
+  weaponType: 0
+  baseDamage: 1
+  baseAttackInterval: 0.3
+  baseRange: 0
+  baseProjectileSpeed: 16
+  baseAttackSize: 0
+  baseAttackCount: 0
+  effectComponentType: 
+  effectValue: 0
+  effectValue2: 0
+  synergyTags: []
+  compatibleCategories: 

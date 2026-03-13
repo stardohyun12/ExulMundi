@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caf07d6e91075a444910af027107be33, type: 3}
+  m_Name: AncientWorld
+  m_EditorClassIdentifier: Assembly-CSharp::WorldDefinition
+  worldName: "\uACE0\uB300 \uC720\uC801"
+  description: "\uC783\uC5B4\uBC84\uB9B0 \uBB38\uBA85\uACFC \uACE0\uB300 \uAE30\uC220\uC774
+    \uB0A8\uC544 \uC788\uB294 \uC138\uACC4."
+  icon: {fileID: 0}
+  themeColor: {r: 0.85, g: 0.7, b: 0.1, a: 1}
+  weaponCard: {fileID: 11400000, guid: cf510f75938cb4a4c94d8d8559ee3d92, type: 2}
+  cardPool:
+  - {fileID: 11400000, guid: db15565e5eec52d4b891d6df8fd6c985, type: 2}
+  - {fileID: 11400000, guid: 87812e7d0e5a9ce41957882eac8e98b8, type: 2}
+  - {fileID: 11400000, guid: 152575cb89b97af4aaa2a22207e92642, type: 2}
+  - {fileID: 11400000, guid: 1a590b776af35c44b85f2bc186788390, type: 2}
+  - {fileID: 11400000, guid: 1b6b578d2017b544c93de3cfe297a269, type: 2}
+  - {fileID: 11400000, guid: 28205e4c4cd0ad14d853c209a43d9a47, type: 2}
+  - {fileID: 11400000, guid: b2b266c95999fd344b4b16562019c1a5, type: 2}
+  - {fileID: 11400000, guid: ba29fb0cbce00d54a9b33d0b3db78156, type: 2}
+  difficultyMult: 1.3

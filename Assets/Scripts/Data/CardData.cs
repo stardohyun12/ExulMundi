@@ -4,10 +4,10 @@ public enum CardRarity { Common, Uncommon, Rare, Legendary }
 
 /// <summary>
 /// 카드 종류.
-/// Passive = 0 (기본값) — 무기 스탯을 강화하는 패시브 효과 카드.
-/// Weapon  = 1           — 런 시작 시 자동으로 무기를 결정하는 카드. 손패에 표시되지만 효과는 항상 적용됨.
+/// Accessory = 0 (기본값) — 무기에 끼우는 장신구. 무기 카드 인접 시 효과를 부여합니다.
+/// Weapon    = 1           — 런 시작 시 자동으로 무기를 결정하는 카드.
 /// </summary>
-public enum CardType { Passive = 0, Weapon = 1 }
+public enum CardType { Accessory = 0, Weapon = 1 }
 
 /// <summary>카드 하나를 정의하는 ScriptableObject.</summary>
 [CreateAssetMenu(fileName = "NewCard", menuName = "Exul Mundi/Card Data")]
@@ -21,7 +21,7 @@ public class CardData : ScriptableObject
     public CardRarity rarity;
 
     [Header("카드 종류")]
-    [Tooltip("Weapon: 런 시작 시 무기를 결정합니다. 무기는 항상 사용되며 손패에 표시됩니다.\nPassive: 손패에 있는 동안 무기 스탯을 강화합니다.")]
+    [Tooltip("Weapon: 런 시작 시 무기를 결정합니다.\nAccessory: 무기 카드 인접 시 장신구 효과를 부여합니다.")]
     public CardType  cardType;
 
     [Header("무기 카드 전용")]

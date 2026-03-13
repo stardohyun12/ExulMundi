@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caf07d6e91075a444910af027107be33, type: 3}
+  m_Name: NatureWorld
+  m_EditorClassIdentifier: Assembly-CSharp::WorldDefinition
+  worldName: "\uC790\uC5F0 \uC815\uB839"
+  description: "\uACE0\uB300 \uC232\uACFC \uC790\uC5F0 \uC815\uB839\uC774 \uC874\uC7AC\uD558\uB294
+    \uC138\uACC4."
+  icon: {fileID: 0}
+  themeColor: {r: 0.1, g: 0.7, b: 0.2, a: 1}
+  weaponCard: {fileID: 11400000, guid: 4e7e34821d02c3e47b49b029010a06b1, type: 2}
+  cardPool:
+  - {fileID: 11400000, guid: 644c36fb292c37d4b9c5604ca3b2d95c, type: 2}
+  - {fileID: 11400000, guid: 079077b2f8b9ea945b04f54e3f875b51, type: 2}
+  - {fileID: 11400000, guid: 534090630fd3d6d4f919e08ba1492ebf, type: 2}
+  - {fileID: 11400000, guid: bea4cdbdcd0b65b4ab1db5e90955e2c9, type: 2}
+  - {fileID: 11400000, guid: 1b6b578d2017b544c93de3cfe297a269, type: 2}
+  - {fileID: 11400000, guid: 28205e4c4cd0ad14d853c209a43d9a47, type: 2}
+  - {fileID: 11400000, guid: b2b266c95999fd344b4b16562019c1a5, type: 2}
+  - {fileID: 11400000, guid: ba29fb0cbce00d54a9b33d0b3db78156, type: 2}
+  difficultyMult: 1.1

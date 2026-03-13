@@ -21,8 +21,9 @@ public class TMPFontApplier : MonoBehaviour
                      FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             tmp.font = font;
+            tmp.extraPadding = true;
         }
 
-        Debug.Log($"[TMPFontApplier] 폰트 일괄 적용: {font.name}");
+        Debug.Log($"[TMPFontApplier] 폰트 일괄 적용: {font.name} (extraPadding ON)");
     }
 }

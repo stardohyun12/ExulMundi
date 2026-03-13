@@ -16,6 +16,8 @@ public class CardInventory : MonoBehaviour
 
     public event Action<CardData> OnCardAdded;
     public event Action<CardData> OnCardRemoved;
+    /// <summary>카드 순서가 바뀔 때 발생합니다. PassiveEffectApplier와 HandUI가 구독합니다.</summary>
+    public event Action           OnCardMoved;
 
     private void Awake()
     {
@@ -42,10 +44,25 @@ public class CardInventory : MonoBehaviour
         Debug.Log($"[CardInventory] 카드 제거: {card.cardName}");
     }
 
+    /// <summary>카드를 fromIndex에서 toIndex로 이동합니다. 순서 변경 후 OnCardMoved를 발생시킵니다.</summary>
+    public void MoveCard(int fromIndex, int toIndex)
+    {
+        if (fromIndex == toIndex) return;
+        if (fromIndex < 0 || fromIndex >= _cards.Count) return;
+        if (toIndex   < 0 || toIndex   >= _cards.Count) return;
+
+        var card = _cards[fromIndex];
+        _cards.RemoveAt(fromIndex);
+        _cards.Insert(toIndex, card);
+
+        OnCardMoved?.Invoke();
+        Debug.Log($"[CardInventory] 카드 이동: {card.cardName} ({fromIndex} → {toIndex})");
+    }
+
     private void ApplyEffect(CardData card)
     {
         // Weapon / Passive 카드는 PassiveEffectApplier가 처리합니다.
-        if (card.cardType == CardType.Passive || card.cardType == CardType.Weapon) return;
+        if (card.cardType == CardType.Accessory || card.cardType == CardType.Weapon) return;
 
         if (string.IsNullOrEmpty(card.effectComponentType)) return;
 

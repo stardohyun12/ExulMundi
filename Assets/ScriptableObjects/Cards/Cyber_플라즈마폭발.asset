@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59be4115f30fbd84ab203762b89de417, type: 3}
+  m_Name: "Cyber_\uD50C\uB77C\uC988\uB9C8\uD3ED\uBC1C"
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  cardName: "\uD50C\uB77C\uC988\uB9C8 \uD3ED\uBC1C"
+  description: "\uCC29\uD0C4 \uC2DC \uB300\uD615 \uD3ED\uBC1C. \uAD11\uC5ED \uD53C\uD574\uB97C
+    \uC900\uB2E4."
+  artwork: {fileID: 0}
+  rarity: 2
+  cardType: 0
+  weaponType: 0
+  baseDamage: 0
+  baseAttackInterval: 0
+  baseRange: 0
+  baseProjectileSpeed: 0
+  baseAttackSize: 0
+  baseAttackCount: 0
+  effectComponentType: ExplosiveEffect
+  effectValue: 2
+  effectValue2: 0
+  synergyTags:
+  - cyberpunk
+  compatibleCategories: 

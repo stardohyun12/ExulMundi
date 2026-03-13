@@ -75,6 +75,9 @@ public class MeleeWeapon : WeaponBase
 
     private void Slash()
     {
+        NotifyActivated();
+        NotifyCooldownStarted(AttackInterval);
+
         int totalDamage = baseDamage + BonusDamage;
         var hits        = Physics2D.OverlapCircleAll(transform.position, slashRadius);
 
@@ -90,9 +93,29 @@ public class MeleeWeapon : WeaponBase
         if (slashVfxPrefab != null)
         {
             var vfx = Instantiate(slashVfxPrefab, transform.position, Quaternion.identity);
-            vfx.transform.localScale = Vector3.one * slashRadius;
-            Destroy(vfx, 0.3f);
+            if (vfx.TryGetComponent<SlashVFX>(out var slashVfx))
+                slashVfx.Launch(FindNearestDirection(), slashRadius);
+            else
+                vfx.transform.localScale = Vector3.one * slashRadius;
         }
+    }
+
+    /// <summary>가장 가까운 적 방향을 반환합니다. 적이 없으면 위쪽을 반환합니다.</summary>
+    private Vector2 FindNearestDirection()
+    {
+        var enemies = FindObjectsByType<EnemyBase>(FindObjectsSortMode.None);
+        Transform nearest = null;
+        float     minDist = float.MaxValue;
+
+        foreach (var e in enemies)
+        {
+            float d = Vector2.Distance(transform.position, e.transform.position);
+            if (d < minDist) { minDist = d; nearest = e.transform; }
+        }
+
+        return nearest != null
+            ? ((Vector2)(nearest.position - transform.position)).normalized
+            : Vector2.up;
     }
 
     private void OnDrawGizmosSelected()

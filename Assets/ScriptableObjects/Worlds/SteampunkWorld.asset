@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caf07d6e91075a444910af027107be33, type: 3}
+  m_Name: SteampunkWorld
+  m_EditorClassIdentifier: Assembly-CSharp::WorldDefinition
+  worldName: "\uC2A4\uD300\uD391\uD06C"
+  description: "\uC99D\uAE30\uAE30\uAD00\uACFC \uAE30\uACC4 \uAE30\uC220\uC774 \uBC1C\uB2EC\uD55C
+    \uC0B0\uC5C5 \uC138\uACC4."
+  icon: {fileID: 0}
+  themeColor: {r: 0.7, g: 0.45, b: 0.15, a: 1}
+  weaponCard: {fileID: 11400000, guid: c0db838b59703614d89f002d4fdd4527, type: 2}
+  cardPool:
+  - {fileID: 11400000, guid: 4d7eb6e06cdfe7740a069a7420efacfd, type: 2}
+  - {fileID: 11400000, guid: ddcbe2ea37064af4d976376a83e383e6, type: 2}
+  - {fileID: 11400000, guid: fd970e0aca958d543bf6a5d2267b6a6d, type: 2}
+  - {fileID: 11400000, guid: 559c6c2baa6e1484ba5154bd40c9ffd4, type: 2}
+  - {fileID: 11400000, guid: 1b6b578d2017b544c93de3cfe297a269, type: 2}
+  - {fileID: 11400000, guid: 28205e4c4cd0ad14d853c209a43d9a47, type: 2}
+  - {fileID: 11400000, guid: b2b266c95999fd344b4b16562019c1a5, type: 2}
+  - {fileID: 11400000, guid: ba29fb0cbce00d54a9b33d0b3db78156, type: 2}
+  difficultyMult: 1.1

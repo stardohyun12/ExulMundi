@@ -1,6 +1,6 @@
 /// <summary>
-/// 흡혈 카드 효과. 무기 타입 무관하게 공격 시 HP를 흡수합니다.
-/// effectValue = 흡혈율 % (ex: 20 → 데미지의 20% 회복)
+/// 흡혈 카드 효과. 무기 타입에 무관하게 공격 시 데미지의 일정 비율을 HP로 흡수합니다.
+/// effectValue = 흡혈율 % (ex: 15 → 데미지의 15% 회복)
 /// </summary>
 public class LifeStealEffect : CardEffectComponent
 {
@@ -10,13 +10,8 @@ public class LifeStealEffect : CardEffectComponent
     {
         base.Initialize(card);
         _rate = card.effectValue / 100f;
-        if (Gun   != null) Gun.LifeStealRate   += _rate;
-        if (Melee != null) Melee.LifeStealRate += _rate;
+        AddLifeSteal(_rate);
     }
 
-    private void OnDestroy()
-    {
-        if (Gun   != null) Gun.LifeStealRate   -= _rate;
-        if (Melee != null) Melee.LifeStealRate -= _rate;
-    }
+    private void OnDestroy() => RemoveLifeSteal(_rate);
 }

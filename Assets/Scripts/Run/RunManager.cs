@@ -14,6 +14,7 @@ public class RunManager : MonoBehaviour
     [SerializeField] private CardRewardUI     cardRewardUI;
     [SerializeField] private EscapeUI         escapeUI;
     [SerializeField] private WorldSelectionUI worldSelectionUI;
+    [SerializeField] private GameOverUI       gameOverUI;
 
     [Header("세계 풀 (시작 시 선택)")]
     [SerializeField] private WorldDefinition[] worldPool;
@@ -141,6 +142,6 @@ public class RunManager : MonoBehaviour
         encounterManager.ForceEnd();
         escapeUI?.Hide();
         Debug.Log("[RunManager] 플레이어 사망 — 게임 오버");
-        // TODO: 게임 오버 UI
+        gameOverUI?.Show(_encounterIndex);
     }
 }
