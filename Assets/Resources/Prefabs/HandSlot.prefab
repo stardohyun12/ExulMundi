@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 8918080544691931947}
   - component: {fileID: 3194966392580734186}
   - component: {fileID: 4840904378661647807}
+  - component: {fileID: 6831419398654408905}
   m_Layer: 0
   m_Name: HandSlot
   m_TagString: Untagged
@@ -78,6 +79,21 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &6831419398654408905
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 128844622683971593}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fb370bece564d5499ce59dde273456c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CardView
+  cooldownBar: {fileID: 0}
+  borderGlow: {fileID: 0}
+  hand: {fileID: 0}
 --- !u!1 &4647267832605464804
 GameObject:
   m_ObjectHideFlags: 0
