@@ -19,10 +19,10 @@ public class HandLayoutController : MonoBehaviour
 {
     // ── 상수 ─────────────────────────────────────────────────────────────────
 
-    private const float FanPeekRatio    = 0.45f;
-    private const float DefaultRadius   = 1800f;
-    private const float DefaultAngle    = 22f;
-    private const float DefaultTilt     = 8f;
+    private const float FanPeekRatio    = 0.70f;  // 패널 30% 숨김 → 엣지 카드 하단 ~35% 화면 밖
+    private const float FanSpread       = 5f;     // 1오프셋당 기울기(°) — 6장 양끝 ±12.5°, 5장 ±10°
+    private const float CardSpacingPx   = 70f;    // 카드 중심 간 x 간격 — 130px 카드에서 60px 겹침(46%)
+    private const float VerticalCurvePx = 65f;    // 중앙 카드 최대 y 오프셋(px) — 190px 카드 기준 34% 높이차
     private const float SlideDuration   = 0.28f;
     private const float FlatSpacing     = 180f;
     private const float ExpandedYRatio  = 0.30f;
@@ -30,13 +30,8 @@ public class HandLayoutController : MonoBehaviour
     // ── Inspector ────────────────────────────────────────────────────────────
 
     [Header("참조")]
-    [SerializeField] private GameObject dimBackground;  // 전체화면 반투명 딤 패널
-    [SerializeField] private Button     viewHandButton; // 손패 보기 / 닫기 버튼
-
-    [Header("Fan 레이아웃 설정")]
-    [SerializeField] private float arcRadius     = DefaultRadius;
-    [SerializeField] private float arcAngleRange = DefaultAngle;
-    [SerializeField] private float cardTiltMax   = DefaultTilt;
+    [SerializeField] private GameObject dimBackground;
+    [SerializeField] private Button     viewHandButton;
 
     // ── 내부 상태 ─────────────────────────────────────────────────────────────
 
@@ -120,38 +115,28 @@ public class HandLayoutController : MonoBehaviour
         int count = _slotRects.Count;
         if (count == 0) return;
 
-        // 언덕 아크: 중앙이 가장 높고 양끝이 기준선(y=0)에 위치합니다.
-        float halfAngleRad = arcAngleRange * 0.5f * Mathf.Deg2Rad;
-        float baseCos      = Mathf.Cos(halfAngleRad);
-
         for (int i = 0; i < count; i++)
         {
-            float t     = count == 1 ? 0f : (float)i / (count - 1); // 0~1
-            float angle = Mathf.Lerp(-arcAngleRange * 0.5f, arcAngleRange * 0.5f, t);
-            float rad   = angle * Mathf.Deg2Rad;
+            float offset        = i - (count - 1) * 0.5f;
+            float normalizedPos = count > 1 ? 2f * i / (count - 1) - 1f : 0f;
 
-            // 수평 오프셋: 음수=왼쪽, 양수=오른쪽
-            float x    = arcRadius * Mathf.Sin(rad);
-            // 수직 오프셋: 중앙 최고, 양끝 0 (언덕형)
-            float yArc = arcRadius * (Mathf.Cos(rad) - baseCos);
-            // 기울기: 왼쪽 카드는 오른쪽으로 기울고(음수), 오른쪽 카드는 왼쪽으로 기웁니다(양수).
-            // Unity에서 Z양수=반시계=오른쪽으로 기울어짐, Z음수=시계=왼쪽으로 기울어짐
-            float tilt = Mathf.Lerp(-cardTiltMax, cardTiltMax, t);
+            float x    = CardSpacingPx   * offset;
+            float yArc = VerticalCurvePx * (1f - normalizedPos * normalizedPos);
+            float tilt = FanSpread       * offset;
 
-            var rt       = _slotRects[i];
+            var rt = _slotRects[i];
+
+            // ── BOTTOM 피벗: 카드 하단이 화면 하단 근처에 고정되고 상단이 안쪽으로 펼쳐짐.
+            //    이미지2처럼 "손으로 쥔" 느낌을 내려면 회전 기준점이 카드 하단이어야 합니다.
             rt.anchorMin = new Vector2(0.5f, 0f);
             rt.anchorMax = new Vector2(0.5f, 0f);
             rt.pivot     = new Vector2(0.5f, 0f);
 
             rt.anchoredPosition = new Vector2(x, yArc);
-            // tilt 부호 수정: -tilt가 아니라 tilt 그대로 사용해야 올바른 방향으로 기웁니다.
             rt.localRotation    = Quaternion.Euler(0f, 0f, tilt);
             rt.localScale       = Vector3.one;
 
-            // 휴식 위치를 HandSlotBehavior에 전달해 pop drift를 방지합니다.
             rt.GetComponent<HandSlotBehavior>()?.SetRestPosition(new Vector2(x, yArc));
-
-            Debug.Log($"[HandFan] slot[{i}] '{rt.gameObject.name}' → x={x:F0}  yArc={yArc:F0}  tilt={tilt:F1}°");
         }
     }
 

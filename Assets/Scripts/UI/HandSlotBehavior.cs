@@ -19,8 +19,14 @@ public class HandSlotBehavior : MonoBehaviour
     private static readonly Color InactiveOverlayColor = new(0f, 0f, 0f, 0.60f);
     private static readonly Color GaugeColor           = new(0.25f, 0.25f, 0.25f, 0.55f);
 
+    // 글로우 테두리 색상 (황금빛)
+    private static readonly Color GlowColorOn  = new(1.0f, 0.78f, 0.20f, 0.90f);
+    private static readonly Color GlowColorOff = new(1.0f, 0.78f, 0.20f, 0.00f);
+    private const float GlowBorderPx = 6f; // 카드 바깥으로 확장되는 글로우 두께(px)
+
     private Image         _gauge;
     private Image         _inactiveOverlay;
+    private Image         _glowBorder;
     private WeaponManager _weaponManager;
     private bool          _isActive = true;
 
@@ -28,6 +34,7 @@ public class HandSlotBehavior : MonoBehaviour
     private float     _elapsed          = 0f;
     private bool      _isFilling        = false;
     private Coroutine _popCoroutine;
+    private Coroutine _glowCoroutine;
     private bool      _isPopped         = false;
     private float     _popHoldTimer     = 0f;
     private Vector2   _restPosition;          // ApplyFanLayout이 설정한 카드의 기준 위치
@@ -43,16 +50,43 @@ public class HandSlotBehavior : MonoBehaviour
         _weaponManager = weaponManager;
         _isActive      = isActive;
 
+        EnsureGlowBorder();
         EnsureInactiveOverlay();
         EnsureGauge();
         ApplyActiveState();
 
         if (!_isActive) return;
 
-        // 활성 슬롯만 쿨타임 게이지를 즉시 시작합니다.
-        // Refresh()가 EquipWeapon()보다 먼저 호출될 수 있어 폴백 1f를 사용합니다.
         float duration = _weaponManager?.CurrentWeapon?.AttackInterval ?? 1f;
         OnCooldownStarted(duration);
+    }
+
+    private void EnsureGlowBorder()
+    {
+        var existing = transform.Find("GlowBorder");
+        if (existing != null)
+        {
+            _glowBorder = existing.GetComponent<Image>();
+            return;
+        }
+
+        var go = new GameObject("GlowBorder");
+        go.transform.SetParent(transform, false);
+        // GaugeBar보다 앞(인덱스 1)에, 카드 배경보다 뒤에 위치해 테두리만 노출됩니다.
+        go.transform.SetAsFirstSibling();
+
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = new Vector2(-GlowBorderPx, -GlowBorderPx);
+        rt.offsetMax = new Vector2(GlowBorderPx, GlowBorderPx);
+
+        var le = go.AddComponent<LayoutElement>();
+        le.ignoreLayout = true;
+
+        _glowBorder               = go.AddComponent<Image>();
+        _glowBorder.color         = GlowColorOff;
+        _glowBorder.raycastTarget = false;
     }
 
     private void EnsureInactiveOverlay()
@@ -189,17 +223,20 @@ public class HandSlotBehavior : MonoBehaviour
 
     // ── 팝 애니메이션 ────────────────────────────────────────────────────────
 
-    private const float PopHoldDuration = 0.12f; // 카드가 올라간 뒤 유지되는 기본 시간(초)
-    private const float PeakOffsetY     = 10f;   // 올라오는 높이(px) — 발동 인지용, 시선을 뺏지 않는 수준
-    private const float PeakScale       = 1.04f;
+    private const float PopHoldDuration = 0.12f;
+    private const float PeakOffsetY     = 3f;    // 아주 미세하게 올라옴 (px)
+    private const float PeakScale       = 1.01f; // 스케일 변화 최소화
 
     /// <summary>외부(HandLayoutController)에서 무기 발사 시 직접 호출합니다.
     /// 연속 호출 시 카드가 내려오지 않고 hold 시간만 연장됩니다.</summary>
     public void TriggerPop()
     {
+        // 글로우는 연속 발사마다 항상 재시작해 빛남이 보이게 합니다.
+        if (_glowCoroutine != null) StopCoroutine(_glowCoroutine);
+        _glowCoroutine = StartCoroutine(GlowAnimation());
+
         if (_isPopped)
         {
-            // 이미 올라가 있으면 hold 시간만 연장해 통통거리지 않게 합니다.
             _popHoldTimer = PopHoldDuration;
             return;
         }
@@ -256,5 +293,45 @@ public class HandSlotBehavior : MonoBehaviour
         rt.anchoredPosition  = originalPos;
         transform.localScale = Vector3.one;
         _popCoroutine        = null;
+    }
+
+    // ── 글로우 테두리 애니메이션 ──────────────────────────────────────────────
+
+    private IEnumerator GlowAnimation()
+    {
+        if (_glowBorder == null) yield break;
+
+        const float inDuration   = 0.06f;
+        const float holdDuration = 0.18f;
+        const float outDuration  = 0.40f;
+
+        // 점등
+        float t = 0f;
+        while (t < inDuration)
+        {
+            t += Time.unscaledDeltaTime;
+            _glowBorder.color = Color.Lerp(GlowColorOff, GlowColorOn, Mathf.Clamp01(t / inDuration));
+            yield return null;
+        }
+        _glowBorder.color = GlowColorOn;
+
+        // 유지
+        float hold = 0f;
+        while (hold < holdDuration)
+        {
+            hold += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        // 서서히 소등
+        t = 0f;
+        while (t < outDuration)
+        {
+            t += Time.unscaledDeltaTime;
+            _glowBorder.color = Color.Lerp(GlowColorOn, GlowColorOff, Mathf.Clamp01(t / outDuration));
+            yield return null;
+        }
+        _glowBorder.color = GlowColorOff;
+        _glowCoroutine    = null;
     }
 }
