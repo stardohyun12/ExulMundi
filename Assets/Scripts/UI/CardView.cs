@@ -12,11 +12,12 @@ using TMPro;
 ///   SetHovered / SetSelected → 즉시 target을 갱신
 ///   SetBasePose → 선택 중이 아닐 때만 target을 갱신
 ///
-/// 무기 슬롯(isActiveSlot = true)에만 쿨다운 게이지, Shake, 글로우가 활성화됩니다.
+/// 무기 슬롯(isActiveSlot = true)에만 쿨다운 게이지, 글로우가 활성화됩니다.
 /// </summary>
 [RequireComponent(typeof(RectTransform))]
 public class CardView : MonoBehaviour,
-    IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
+    IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler,
+    IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
 {
     // ── 상수 ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,16 @@ public class CardView : MonoBehaviour,
     // ── 글로우 ───────────────────────────────────────────────────────────────
 
     private Coroutine _glowCoroutine;
+    private float     _lastActivationTime = -999f;
+    private const float GlowHoldDuration  = 0.5f;   // 마지막 발동 후 글로우를 유지할 시간(초)
+
+    // ── 드래그 ───────────────────────────────────────────────────────────────
+
+    private Canvas      _canvas;
+    private CanvasGroup _canvasGroup;
+    private Transform   _dragOriginalParent;
+    private int         _pendingDropToIndex = -1;
+    private bool        _isDragging;
 
     // ── 초기화 ───────────────────────────────────────────────────────────────
 
@@ -78,17 +89,24 @@ public class CardView : MonoBehaviour,
         _card          = data;
         _isActiveSlot  = isActiveSlot;
 
-        // CENTER 피벗/앵커 → localPosition이 SlotsContainer 중심 기준으로 동작합니다.
+        // BOTTOM 피벗/앵커 — CardHouse 방식:
+        // 카드 하단이 원호 위의 점이 되고, 회전이 그 점을 중심으로 이뤄집니다.
         var rt       = GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot     = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(120f, 180f);
+        rt.anchorMin = new Vector2(0.5f, 0f);
+        rt.anchorMax = new Vector2(0.5f, 0f);
+        rt.pivot     = new Vector2(0.5f, 0f);
+        rt.sizeDelta = new Vector2(160f, 240f);
 
         BindChildUI();
         ApplyCardData(data);
         EnsureGlowBorder();
         EnsureGaugeBar();
+
+        _canvas = GetComponentInParent<Canvas>();
+
+        _canvasGroup = GetComponent<CanvasGroup>();
+        if (_canvasGroup == null)
+            _canvasGroup = gameObject.AddComponent<CanvasGroup>();
 
         if (_isActiveSlot)
             StartCooldown(_weaponManager?.CurrentWeapon?.AttackInterval ?? 1f);
@@ -223,10 +241,13 @@ public class CardView : MonoBehaviour,
 
     private void Update()
     {
-        transform.localPosition    = Vector3.Lerp(transform.localPosition, targetPos, Time.deltaTime * SPD);
-        transform.localEulerAngles = new Vector3(0f, 0f,
-            Mathf.LerpAngle(transform.localEulerAngles.z, targetRot, Time.deltaTime * SPD));
-        transform.localScale       = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * SPD);
+        if (!_isDragging)
+        {
+            transform.localPosition    = Vector3.Lerp(transform.localPosition, targetPos, Time.deltaTime * SPD);
+            transform.localEulerAngles = new Vector3(0f, 0f,
+                Mathf.LerpAngle(transform.localEulerAngles.z, targetRot, Time.deltaTime * SPD));
+            transform.localScale       = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * SPD);
+        }
 
         if (_isFilling && _isActiveSlot)
         {
@@ -237,32 +258,93 @@ public class CardView : MonoBehaviour,
 
     /// <summary>
     /// 쿨다운 게이지를 갱신합니다 (t : 0 ~ 1).
-    /// t == 1 이 되면 Shake 애니메이션을 실행합니다.
     /// </summary>
     public void UpdateCooldown(float t)
     {
         if (cooldownBar) cooldownBar.fillAmount = t;
         if (t >= 1f)
-        {
             _isFilling = false;
-            StartCoroutine(Shake());
-        }
     }
 
-    // ── Shake — 참조 코드 그대로 (selected 오프셋 보정 추가) ─────────────────
+    // ── 드래그 앤 드롭 ──────────────────────────────────────────────────────
 
-    private IEnumerator Shake()
+    /// <summary>드래그 시작 시 카드를 Canvas 최상위로 올립니다.</summary>
+    public void OnBeginDrag(PointerEventData e)
     {
-        Vector3 restPos = isSelected
-            ? basePos + new Vector3(0f, hand.SelectedRiseY, 0f)
-            : basePos;
+        _isDragging         = true;
+        _pendingDropToIndex = -1;
+        _dragOriginalParent = transform.parent;
 
-        for (float t = 0f; t < 0.25f; t += Time.deltaTime)
+        if (_canvas == null) _canvas = GetComponentInParent<Canvas>();
+
+        if (_canvasGroup == null)
         {
-            targetPos = restPos + new Vector3(Mathf.Sin(t * 80f) * 3f, 0f, 0f);
-            yield return null;
+            _canvasGroup = GetComponent<CanvasGroup>();
+            if (_canvasGroup == null)
+                _canvasGroup = gameObject.AddComponent<CanvasGroup>();
         }
-        targetPos = restPos;
+
+        // 드래그 중에는 center pivot으로 전환해 포인터 중앙에 카드가 오도록 합니다.
+        var rt       = GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot     = new Vector2(0.5f, 0.5f);
+
+        transform.SetParent(_canvas.transform, worldPositionStays: true);
+        transform.SetAsLastSibling();
+        transform.localEulerAngles = Vector3.zero;
+        transform.localScale       = Vector3.one;
+
+        _canvasGroup.alpha          = 0.75f;
+        _canvasGroup.blocksRaycasts = false;
+    }
+
+    /// <summary>드래그 중 포인터를 따라 카드를 이동시킵니다.</summary>
+    public void OnDrag(PointerEventData e)
+    {
+        var rt = GetComponent<RectTransform>();
+        rt.anchoredPosition += e.delta / _canvas.scaleFactor;
+    }
+
+    /// <summary>드래그 종료 시 원래 부모로 복귀하고 필요하면 카드 순서를 교환합니다.</summary>
+    public void OnEndDrag(PointerEventData e)
+    {
+        _isDragging = false;
+
+        if (_canvasGroup != null)
+        {
+            _canvasGroup.alpha          = 1f;
+            _canvasGroup.blocksRaycasts = true;
+        }
+
+        transform.SetParent(_dragOriginalParent, worldPositionStays: false);
+
+        // pivot을 다시 하단으로 복원합니다.
+        var rt       = GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0f);
+        rt.anchorMax = new Vector2(0.5f, 0f);
+        rt.pivot     = new Vector2(0.5f, 0f);
+
+        if (_pendingDropToIndex >= 0)
+        {
+            int from = hand.GetCardIndex(this);
+            if (from >= 0)
+                CardInventory.Instance.MoveCard(from, _pendingDropToIndex);
+        }
+        else
+        {
+            hand.ArrangeHand();
+        }
+
+        _pendingDropToIndex = -1;
+    }
+
+    /// <summary>다른 카드가 이 카드 위에 드롭될 때 소스 카드에 목표 인덱스를 전달합니다.</summary>
+    public void OnDrop(PointerEventData e)
+    {
+        var dragged = e.pointerDrag?.GetComponent<CardView>();
+        if (dragged == null || dragged == this) return;
+        dragged._pendingDropToIndex = hand.GetCardIndex(this);
     }
 
     // ── 쿨다운 / 글로우 내부 로직 ─────────────────────────────────────────────
@@ -291,8 +373,12 @@ public class CardView : MonoBehaviour,
         if (!_isActiveSlot) return;
         _isFilling = false;
         if (cooldownBar) cooldownBar.fillAmount = 0f;
-        if (_glowCoroutine != null) StopCoroutine(_glowCoroutine);
-        _glowCoroutine = StartCoroutine(GlowAnimation());
+
+        _lastActivationTime = Time.unscaledTime;
+
+        // 글로우가 이미 실행 중이면 타임스탬프만 갱신해서 hold 시간을 연장합니다.
+        if (_glowCoroutine == null)
+            _glowCoroutine = StartCoroutine(GlowAnimation());
     }
 
     private void HandleCooldownStarted(float duration)
@@ -305,29 +391,41 @@ public class CardView : MonoBehaviour,
     {
         if (borderGlow == null) yield break;
 
-        const float inDur   = 0.06f;
-        const float holdDur = 0.18f;
-        const float outDur  = 0.40f;
+        const float inDur  = 0.06f;
+        const float outDur = 0.40f;
 
-        for (float t = 0f; t < inDur;   t += Time.unscaledDeltaTime)
+        // Fade in
+        for (float t = 0f; t < inDur; t += Time.unscaledDeltaTime)
         {
             borderGlow.color = Color.Lerp(GlowColorOff, GlowColorOn, t / inDur);
             yield return null;
         }
         borderGlow.color = GlowColorOn;
 
-        for (float t = 0f; t < holdDur; t += Time.unscaledDeltaTime) yield return null;
+        // 마지막 발동 후 GlowHoldDuration이 지날 때까지 대기합니다.
+        // 추가 발동이 오면 _lastActivationTime이 갱신되어 대기가 자동 연장됩니다.
+        while (Time.unscaledTime - _lastActivationTime < GlowHoldDuration)
+            yield return null;
 
-        for (float t = 0f; t < outDur;  t += Time.unscaledDeltaTime)
+        // Fade out (도중 추가 발동이 오면 다시 hold 구간으로 진입합니다)
+        for (float t = 0f; t < outDur; t += Time.unscaledDeltaTime)
         {
+            if (Time.unscaledTime - _lastActivationTime < GlowHoldDuration)
+            {
+                borderGlow.color = GlowColorOn;
+                while (Time.unscaledTime - _lastActivationTime < GlowHoldDuration)
+                    yield return null;
+                t = 0f;
+            }
             borderGlow.color = Color.Lerp(GlowColorOn, GlowColorOff, t / outDur);
             yield return null;
         }
+
         borderGlow.color = GlowColorOff;
         _glowCoroutine   = null;
     }
 
-    // ── 포인터 이벤트 — 참조 코드 그대로 ─────────────────────────────────────
+    // ── 포인터 이벤트 ─────────────────────────────────────────────────────────
 
     public void OnPointerEnter(PointerEventData e) => hand.OnCardHoverEnter(this);
     public void OnPointerExit (PointerEventData e) => hand.OnCardHoverExit(this);

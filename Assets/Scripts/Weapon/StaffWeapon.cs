@@ -262,13 +262,15 @@ public class StaffWeapon : WeaponBase
 
     private void UpdateOrbPositions()
     {
-        Vector2 origin = transform.position;
+        // XZ 평면에서 플레이어 주위를 궤도 회전 (탑다운 3D)
+        Vector3 origin = transform.position;
         for (int i = 0; i < _orbs.Count; i++)
         {
             if (_orbs[i] == null) continue;
             float rad = (_currentAngle + _orbAngles[i]) * Mathf.Deg2Rad;
-            _orbs[i].transform.position = origin + new Vector2(
+            _orbs[i].transform.position = origin + new Vector3(
                 Mathf.Cos(rad) * orbitRadius,
+                0f,
                 Mathf.Sin(rad) * orbitRadius
             );
         }
@@ -283,7 +285,8 @@ public class StaffWeapon : WeaponBase
         foreach (var orb in _orbs)
         {
             if (orb == null) continue;
-            var hits = Physics2D.OverlapCircleAll(orb.transform.position, hitRadius);
+            // 3D 구형 범위 충돌 감지
+            var hits = Physics.OverlapSphere(orb.transform.position, hitRadius);
             foreach (var hit in hits)
             {
                 if (!hit.TryGetComponent<EnemyBase>(out var enemy)) continue;

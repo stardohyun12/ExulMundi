@@ -19,10 +19,14 @@ public class HandLayoutController : MonoBehaviour
 {
     // ── 상수 ─────────────────────────────────────────────────────────────────
 
-    private const float FanPeekRatio    = 0.70f;  // 패널 30% 숨김 → 엣지 카드 하단 ~35% 화면 밖
-    private const float FanSpread       = 5f;     // 1오프셋당 기울기(°) — 6장 양끝 ±12.5°, 5장 ±10°
-    private const float CardSpacingPx   = 70f;    // 카드 중심 간 x 간격 — 130px 카드에서 60px 겹침(46%)
-    private const float VerticalCurvePx = 65f;    // 중앙 카드 최대 y 오프셋(px) — 190px 카드 기준 34% 높이차
+    /// <summary>부채꼴 원호의 반지름(px). 클수록 호가 완만해집니다.</summary>
+    private const float FanArcRadius    = 900f;
+    /// <summary>카드 1장당 벌어지는 각도(°).</summary>
+    private const float FanAngleStep    = 7f;
+    /// <summary>양끝 카드의 최대 각도(°). 카드가 많아도 이 값을 넘지 않습니다.</summary>
+    private const float FanMaxHalfAngle = 26f;
+    /// <summary>모든 카드를 위로 밀어올리는 오프셋(px). 카드가 화면에 더 많이 보입니다.</summary>
+    private const float FanUplift       = 40f;
     private const float SlideDuration   = 0.28f;
     private const float FlatSpacing     = 180f;
     private const float ExpandedYRatio  = 0.30f;
@@ -36,7 +40,6 @@ public class HandLayoutController : MonoBehaviour
     // ── 내부 상태 ─────────────────────────────────────────────────────────────
 
     private RectTransform              _panelRect;
-    private float                      _panelHeight;
     private bool                       _isExpanded;
     private Coroutine                  _slideCoroutine;
     private readonly List<RectTransform> _slotRects = new();
@@ -45,8 +48,7 @@ public class HandLayoutController : MonoBehaviour
 
     private void Awake()
     {
-        _panelRect   = GetComponent<RectTransform>();
-        _panelHeight = _panelRect.sizeDelta.y;
+        _panelRect = GetComponent<RectTransform>();
     }
 
     private void Start()
@@ -115,28 +117,33 @@ public class HandLayoutController : MonoBehaviour
         int count = _slotRects.Count;
         if (count == 0) return;
 
+        // 카드 수에 비례한 반각도 계산, 최대값으로 클램프
+        float halfAngle = Mathf.Min(FanAngleStep * (count - 1) * 0.5f, FanMaxHalfAngle);
+
         for (int i = 0; i < count; i++)
         {
-            float offset        = i - (count - 1) * 0.5f;
-            float normalizedPos = count > 1 ? 2f * i / (count - 1) - 1f : 0f;
+            // t: 0(맨 왼쪽) ~ 1(맨 오른쪽), angle: 부채꼴 각도(°)
+            float t     = count > 1 ? (float)i / (count - 1) : 0.5f;
+            float angle = count > 1 ? Mathf.Lerp(-halfAngle, halfAngle, t) : 0f;
+            float rad   = angle * Mathf.Deg2Rad;
 
-            float x    = CardSpacingPx   * offset;
-            float yArc = VerticalCurvePx * (1f - normalizedPos * normalizedPos);
-            float tilt = FanSpread       * offset;
+            // 원호 기반 위치 — 중심(0)이 가장 높고, 양끝으로 갈수록 낮아짐
+            float x = FanArcRadius * Mathf.Sin(rad);
+            float y = FanUplift + FanArcRadius * (Mathf.Cos(rad) - 1f);
 
             var rt = _slotRects[i];
 
-            // ── BOTTOM 피벗: 카드 하단이 화면 하단 근처에 고정되고 상단이 안쪽으로 펼쳐짐.
-            //    이미지2처럼 "손으로 쥔" 느낌을 내려면 회전 기준점이 카드 하단이어야 합니다.
+            // 피벗을 카드 하단 중앙에 설정 → 회전 시 손 안에 쥔 느낌
             rt.anchorMin = new Vector2(0.5f, 0f);
             rt.anchorMax = new Vector2(0.5f, 0f);
             rt.pivot     = new Vector2(0.5f, 0f);
 
-            rt.anchoredPosition = new Vector2(x, yArc);
-            rt.localRotation    = Quaternion.Euler(0f, 0f, tilt);
-            rt.localScale       = Vector3.one;
+            rt.anchoredPosition = new Vector2(x, y);
+            // 부채꼴: 왼쪽 카드는 왼쪽으로, 오른쪽 카드는 오른쪽으로 기울어야 하므로 -angle
+            rt.localRotation = Quaternion.Euler(0f, 0f, -angle);
+            rt.localScale    = Vector3.one;
 
-            rt.GetComponent<HandSlotBehavior>()?.SetRestPosition(new Vector2(x, yArc));
+            rt.GetComponent<HandSlotBehavior>()?.SetRestPosition(new Vector2(x, y));
         }
     }
 
@@ -190,7 +197,7 @@ public class HandLayoutController : MonoBehaviour
 
     // ── Y 위치 헬퍼 ───────────────────────────────────────────────────────────
 
-    private float TargetFanY() => -_panelHeight * (1f - FanPeekRatio);
+    private float TargetFanY() => 0f;
 
     private float TargetExpandedY()
     {

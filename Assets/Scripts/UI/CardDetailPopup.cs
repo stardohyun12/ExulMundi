@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 using TMPro;
 
 /// <summary>
@@ -32,7 +33,8 @@ public class CardDetailPopup : MonoBehaviour
 
     private void Update()
     {
-        if (panel != null && panel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
+        if (panel != null && panel.activeSelf && Keyboard.current != null
+            && Keyboard.current.escapeKey.wasPressedThisFrame)
             Hide();
     }
 
@@ -78,7 +80,7 @@ public class CardDetailPopup : MonoBehaviour
         // ── 카드 패널 ────────────────────────────────────────────────────
         var panelGo  = MakeGO("Popup_Panel", backdropGo.transform);
         var panelRt  = panelGo.AddComponent<RectTransform>();
-        panelRt.sizeDelta        = new Vector2(400f, 300f);
+        panelRt.sizeDelta        = new Vector2(680f, 580f);
         panelRt.anchoredPosition = Vector2.zero;
         var panelImg = panelGo.AddComponent<Image>();
         panelImg.color = new Color(0.09f, 0.09f, 0.14f, 0.97f);
@@ -92,27 +94,27 @@ public class CardDetailPopup : MonoBehaviour
         vlg.childForceExpandHeight = false;
 
         // ── 희귀도 컬러 바 ───────────────────────────────────────────────
-        rarityColorBar = AddImage(panelGo.transform, "RarityBar", new Color(0.4f, 0.4f, 1f), 5f);
+        rarityColorBar = AddImage(panelGo.transform, "RarityBar", new Color(0.4f, 0.4f, 1f), 6f);
 
         // ── 카드 이름 ────────────────────────────────────────────────────
-        cardNameText = AddTMP(panelGo.transform, "CardName", 22f, FontStyles.Bold,
-                              Color.white, 32f, sharedFont);
+        cardNameText = AddTMP(panelGo.transform, "CardName", 28f, FontStyles.Bold,
+                              Color.white, 40f, sharedFont);
 
         // ── 희귀도 ───────────────────────────────────────────────────────
-        rarityText = AddTMP(panelGo.transform, "Rarity", 14f, FontStyles.Normal,
-                            new Color(0.75f, 0.75f, 0.75f), 20f, sharedFont);
+        rarityText = AddTMP(panelGo.transform, "Rarity", 18f, FontStyles.Normal,
+                            new Color(0.75f, 0.75f, 0.75f), 26f, sharedFont);
 
         // ── 구분선 ────────────────────────────────────────────────────────
         AddImage(panelGo.transform, "Divider", new Color(0.35f, 0.35f, 0.35f), 1f);
 
         // ── 설명 ─────────────────────────────────────────────────────────
-        descriptionText = AddTMP(panelGo.transform, "Description", 15f, FontStyles.Normal,
-                                 new Color(0.88f, 0.88f, 0.88f), 60f, sharedFont);
+        descriptionText = AddTMP(panelGo.transform, "Description", 18f, FontStyles.Normal,
+                                 new Color(0.88f, 0.88f, 0.88f), 150f, sharedFont);
         descriptionText.enableWordWrapping = true;
 
         // ── 효과 상세 ────────────────────────────────────────────────────
-        effectDetailText = AddTMP(panelGo.transform, "EffectDetail", 14f, FontStyles.Normal,
-                                  new Color(0.95f, 0.95f, 0.95f), 80f, sharedFont);
+        effectDetailText = AddTMP(panelGo.transform, "EffectDetail", 17f, FontStyles.Normal,
+                                  new Color(0.95f, 0.95f, 0.95f), 150f, sharedFont);
         effectDetailText.enableWordWrapping = true;
 
         // ── 닫기 버튼 ────────────────────────────────────────────────────

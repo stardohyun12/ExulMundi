@@ -42,7 +42,7 @@ public class MeleeWeapon : WeaponBase
     public override int AttackCount
     {
         get => 1;
-        set { } // 검은 개수 변경 없음
+        set { }
     }
 
     protected override void Awake()
@@ -79,8 +79,9 @@ public class MeleeWeapon : WeaponBase
         NotifyCooldownStarted(AttackInterval);
 
         int totalDamage = baseDamage + BonusDamage;
-        var hits        = Physics2D.OverlapCircleAll(transform.position, slashRadius);
 
+        // 3D OverlapSphere — XZ 평면 전방위 탐지
+        var hits = Physics.OverlapSphere(transform.position, slashRadius);
         foreach (var hit in hits)
         {
             if (!hit.TryGetComponent<EnemyBase>(out var enemy)) continue;
@@ -100,8 +101,8 @@ public class MeleeWeapon : WeaponBase
         }
     }
 
-    /// <summary>가장 가까운 적 방향을 반환합니다. 적이 없으면 위쪽을 반환합니다.</summary>
-    private Vector2 FindNearestDirection()
+    /// <summary>가장 가까운 적의 XZ 방향을 반환합니다. 적이 없으면 forward를 반환합니다.</summary>
+    private Vector3 FindNearestDirection()
     {
         var enemies = FindObjectsByType<EnemyBase>(FindObjectsSortMode.None);
         Transform nearest = null;
@@ -109,13 +110,15 @@ public class MeleeWeapon : WeaponBase
 
         foreach (var e in enemies)
         {
-            float d = Vector2.Distance(transform.position, e.transform.position);
+            float d = Vector3.Distance(transform.position, e.transform.position);
             if (d < minDist) { minDist = d; nearest = e.transform; }
         }
 
-        return nearest != null
-            ? ((Vector2)(nearest.position - transform.position)).normalized
-            : Vector2.up;
+        if (nearest == null) return Vector3.forward;
+
+        Vector3 dir = nearest.position - transform.position;
+        dir.y = 0f;
+        return dir.normalized;
     }
 
     private void OnDrawGizmosSelected()

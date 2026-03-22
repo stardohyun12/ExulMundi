@@ -100,22 +100,26 @@ public class GunWeapon : WeaponBase
         if (bulletPrefab == null) return;
 
         Transform target  = FindNearestEnemy();
-        Vector2   baseDir = target != null
-            ? ((Vector2)(target.position - transform.position)).normalized
-            : Vector2.up;
+        // XZ 평면에서 방향 계산 (Y 무시)
+        Vector3   baseDir = target != null
+            ? new Vector3(
+                target.position.x - transform.position.x,
+                0f,
+                target.position.z - transform.position.z).normalized
+            : Vector3.forward;
 
         SpawnBullet(baseDir);
         foreach (float angle in ExtraAngles)
-            SpawnBullet(Quaternion.Euler(0, 0, angle) * baseDir);
+            SpawnBullet(Quaternion.Euler(0, angle, 0) * baseDir); // Y축 회전으로 탑다운 산탄
     }
 
     /// <summary>발사체 1개를 생성합니다.</summary>
-    public void SpawnBullet(Vector2 direction)
+    public void SpawnBullet(Vector3 direction)
     {
         var go = Instantiate(bulletPrefab, transform.position, Quaternion.identity);
         go.transform.localScale = Vector3.one * bulletSize;
 
-        if (go.TryGetComponent<Rigidbody2D>(out var rb))
+        if (go.TryGetComponent<Rigidbody>(out var rb))
             rb.linearVelocity = direction * bulletSpeed;
 
         if (go.TryGetComponent<Projectile>(out var proj))
@@ -136,7 +140,7 @@ public class GunWeapon : WeaponBase
         float     minDist = float.MaxValue;
         foreach (var e in enemies)
         {
-            float d = Vector2.Distance(transform.position, e.transform.position);
+            float d = Vector3.Distance(transform.position, e.transform.position);
             if (d < minDist) { minDist = d; nearest = e.transform; }
         }
         return nearest;

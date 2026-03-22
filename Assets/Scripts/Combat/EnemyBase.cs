@@ -41,10 +41,12 @@ public class EnemyBase : MonoBehaviour
         }
     }
 
+    /// <summary>XZ 평면에서 플레이어 방향으로 이동합니다.</summary>
     protected virtual void MoveTowardPlayer()
     {
-        Vector2 dir = (_player.position - transform.position).normalized;
-        transform.Translate(dir * moveSpeed * Time.deltaTime);
+        Vector3 dir = (_player.position - transform.position);
+        dir.y = 0f; // Y축 이동 제거 (XZ 평면 고정)
+        transform.Translate(dir.normalized * moveSpeed * Time.deltaTime, Space.World);
     }
 
     protected virtual void TryAttack() { }
@@ -71,9 +73,10 @@ public class EnemyBase : MonoBehaviour
         Destroy(gameObject);
     }
 
-    private void OnTriggerStay2D(Collider2D other)
+    // 3D 물리 충돌 — 플레이어 접촉 시 피해 (비트리거 콜라이더)
+    private void OnCollisionStay(Collision collision)
     {
-        if (!other.CompareTag("Player")) return;
-        other.GetComponent<PlayerHealth>()?.TakeDamage(contactDamage);
+        if (!collision.gameObject.CompareTag("Player")) return;
+        collision.gameObject.GetComponent<PlayerHealth>()?.TakeDamage(contactDamage);
     }
 }

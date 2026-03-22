@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>플레이어가 발사하는 투사체. GunWeapon이 생성합니다.</summary>
-[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Rigidbody))]
 public class Projectile : MonoBehaviour
 {
     [SerializeField] private int   damage   = 1;
@@ -18,7 +18,8 @@ public class Projectile : MonoBehaviour
 
     private void Start() => Destroy(gameObject, lifetime);
 
-    private void OnTriggerEnter2D(Collider2D other)
+    // 3D Trigger 충돌 — 적에게 피해
+    private void OnTriggerEnter(Collider other)
     {
         if (!other.TryGetComponent<EnemyBase>(out var enemy)) return;
 
@@ -26,7 +27,8 @@ public class Projectile : MonoBehaviour
 
         if (IsExplosive)
         {
-            var hits = Physics2D.OverlapCircleAll(transform.position, ExplosionRadius);
+            // 3D 구형 범위 내 추가 적 피해
+            var hits = Physics.OverlapSphere(transform.position, ExplosionRadius);
             foreach (var hit in hits)
             {
                 if (hit.TryGetComponent<EnemyBase>(out var e) && e != enemy)

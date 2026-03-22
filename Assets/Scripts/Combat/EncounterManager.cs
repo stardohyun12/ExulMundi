@@ -14,7 +14,7 @@ public class EncounterManager : MonoBehaviour
     [Tooltip("체크 시 허수아비를 스폰합니다.")]
     [SerializeField] private bool       dummyMode       = true;
     [SerializeField] private GameObject dummyPrefab;
-    [SerializeField] private Vector2    dummySpawnPos   = Vector2.zero;
+    [SerializeField] private Vector3    dummySpawnOffset = new Vector3(3f, 0f, 0f);
     [Tooltip("이 수만큼 처치하면 인카운터 완료. 0이면 무한 리스폰.")]
     [SerializeField] private int        killsToComplete = 3;
 
@@ -78,7 +78,13 @@ public class EncounterManager : MonoBehaviour
             return;
         }
 
-        var go    = Instantiate(dummyPrefab, dummySpawnPos, Quaternion.identity);
+        // 플레이어 위치 기준으로 스폰 (XZ 평면)
+        var playerObj = GameObject.FindWithTag("Player");
+        Vector3 origin = playerObj != null ? playerObj.transform.position : transform.position;
+        Vector3 spawnPos = origin + dummySpawnOffset;
+        spawnPos.y = 1f; // 바닥(Y=0) 위 1유닛
+
+        var go    = Instantiate(dummyPrefab, spawnPos, Quaternion.identity);
         var enemy = go.GetComponent<EnemyBase>();
         if (enemy == null) return;
 
@@ -135,13 +141,18 @@ public class EncounterManager : MonoBehaviour
     {
         if (wave.enemyPrefabs == null || wave.enemyPrefabs.Length == 0) return;
 
+        // 플레이어 위치 기준으로 XZ 원형 스폰
+        var playerObj = GameObject.FindWithTag("Player");
+        Vector3 center = playerObj != null ? playerObj.transform.position : transform.position;
+
         for (int i = 0; i < wave.count; i++)
         {
             var prefab = wave.enemyPrefabs[UnityEngine.Random.Range(0, wave.enemyPrefabs.Length)];
             if (prefab == null) continue;
 
-            Vector2 pos = (Vector2)transform.position
-                + UnityEngine.Random.insideUnitCircle.normalized * spawnRadius;
+            Vector2 circle = UnityEngine.Random.insideUnitCircle.normalized * spawnRadius;
+            Vector3 pos    = new Vector3(center.x + circle.x, 1f, center.z + circle.y);
+
             var go    = Instantiate(prefab, pos, Quaternion.identity);
             var enemy = go.GetComponent<EnemyBase>();
 
