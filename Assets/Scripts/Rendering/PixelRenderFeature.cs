@@ -38,8 +38,12 @@ public class PixelRenderFeature : ScriptableRendererFeature
         [Min(1)] public int pixelWidth  = 320;
         [Min(1)] public int pixelHeight = 180;
 
+        [Header("Soft Quantization")]
+        [Tooltip("Levels per color channel. 8 = subtle banding. 4 = strong. 16 = nearly invisible.")]
+        [Range(2f, 32f)] public float quantizeSteps = 8f;
+
         [Header("Edge-Only Dithering")]
-        [Range(0f, 1f)]      public float ditherStrength  = 0.55f;
+        [Range(0f, 1f)]      public float ditherStrength  = 0.08f;
         [Range(0.01f, 0.5f)] public float ditherEdgeWidth = 0.18f;
 
         [Header("Edge Detection")]
@@ -59,6 +63,7 @@ public class PixelRenderFeature : ScriptableRendererFeature
     private Material     _effectsMaterial;
 
     private static readonly int PixelTexelSizeId  = Shader.PropertyToID("_PixelTexelSize");
+    private static readonly int QuantizeStepsId   = Shader.PropertyToID("_QuantizeSteps");
     private static readonly int DitherStrengthId  = Shader.PropertyToID("_DitherStrength");
     private static readonly int DitherEdgeWidthId = Shader.PropertyToID("_DitherEdgeWidth");
     private static readonly int EdgeThresholdId   = Shader.PropertyToID("_EdgeThreshold");
@@ -97,6 +102,7 @@ public class PixelRenderFeature : ScriptableRendererFeature
         // Sync material properties on main thread before RecordRenderGraph.
         _effectsMaterial.SetVector(PixelTexelSizeId,
             new Vector4(1f / pixelW, 1f / pixelH, pixelW, pixelH));
+        _effectsMaterial.SetFloat(QuantizeStepsId,   settings.quantizeSteps);
         _effectsMaterial.SetFloat(DitherStrengthId,  settings.ditherStrength);
         _effectsMaterial.SetFloat(DitherEdgeWidthId, settings.ditherEdgeWidth);
         _effectsMaterial.SetFloat(EdgeThresholdId,   settings.edgeThreshold);
@@ -147,15 +153,18 @@ public class PixelRenderFeature : ScriptableRendererFeature
             int pixelW = Mathf.Max(1, _settings.pixelWidth);
             int pixelH = Mathf.Max(1, _settings.pixelHeight);
 
-            // Temporary low-res texture — lives only for this frame.
-            RenderTextureDescriptor lowResDesc = cameraData.cameraTargetDescriptor;
-            lowResDesc.width           = pixelW;
-            lowResDesc.height          = pixelH;
-            lowResDesc.depthBufferBits = 0;
-            lowResDesc.msaaSamples     = 1;
-
-            TextureHandle lowRes = UniversalRenderer.CreateRenderGraphTexture(
-                renderGraph, lowResDesc, "_PixelArtLowRes", false, FilterMode.Point);
+            // Temporary low-res texture — allocated from RenderGraph pool, lives one frame.
+            var desc = cameraData.cameraTargetDescriptor;
+            TextureHandle lowRes = renderGraph.CreateTexture(new TextureDesc(pixelW, pixelH)
+            {
+                colorFormat     = desc.graphicsFormat,
+                depthBufferBits = DepthBits.None,
+                msaaSamples     = MSAASamples.None,
+                filterMode      = FilterMode.Point,
+                clearBuffer     = true,
+                clearColor      = Color.black,
+                name            = "LowResPixelRT"
+            });
 
             // Integer-scale viewport, letterboxed.
             int   screenW = Screen.width;

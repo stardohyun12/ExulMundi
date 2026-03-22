@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Player_Cel
+  m_Name: Ground_Cel
   m_Shader: {fileID: 4800000, guid: 7afa1d9d32297af45a10112c6731ba57, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -25,28 +25,20 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _CelSteps: 2
-    - _Glossiness: 64
-    - _LightSteps: 3
-    - _NormalSteps: 2
-    - _OutlineWidth: 0.04
-    - _RimAmount: 0.55
-    - _RimStrength: 0.35
+    - _Glossiness: 16
+    - _OutlineWidth: 0.02
+    - _RimAmount: 0.7
     - _RimThreshold: 0.1
     - _ShadowSmooth: 0.15
     - _ShadowStep: 0
-    - _ShadowThresh: 0.45
     - _SpecularSmooth: 0.05
-    - _SpecularStep: 0.75
-    - _SpecularStr: 0
-    - _SpecularThresh: 0.8
+    - _SpecularStep: 0.85
     m_Colors:
-    - _AmbientColor: {r: 0.04, g: 0.06, b: 0.12, a: 1}
-    - _BaseColor: {r: 0.25, g: 0.45, b: 0.8, a: 1}
-    - _LightColor: {r: 0.85, g: 0.68, b: 0.45, a: 1}
-    - _OutlineColor: {r: 0.03, g: 0.03, b: 0.08, a: 1}
-    - _RimColor: {r: 0.5, g: 0.7, b: 1, a: 1}
-    - _ShadowColor: {r: 0.08, g: 0.14, b: 0.35, a: 1}
-    - _SpecularColor: {r: 0.95, g: 0.95, b: 1, a: 1}
+    - _AmbientColor: {r: 0.06, g: 0.09, b: 0.04, a: 1}
+    - _BaseColor: {r: 0.3, g: 0.48, b: 0.2, a: 1}
+    - _OutlineColor: {r: 0.04, g: 0.07, b: 0.02, a: 1}
+    - _RimColor: {r: 0.4, g: 0.6, b: 0.3, a: 1}
+    - _ShadowColor: {r: 0.12, g: 0.18, b: 0.09, a: 1}
+    - _SpecularColor: {r: 0.6, g: 0.75, b: 0.5, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
