@@ -1,23 +1,21 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
 // ── ARCHITECTURE NOTE ─────────────────────────────────────────────────────────
-// camera.targetTexture approach was removed. Setting it caused "No cameras rendering"
-// in the Game View because URP stopped writing to Display 1.
-// Instead: two RenderGraph passes handle downscale → upscale within the normal pipeline.
+// Unity 6 URP RenderGraph에서 cameraNormalsTexture는 URP 내장 기능(SSAO 등)이
+// 요청해야만 생성된다. 외부 Feature의 UseTexture()만으로는 핸들이 생성되지 않음.
+//
+// 해결: NormalsPrepass를 직접 실행해 normalsRT를 채우고 글로벌 텍스처로 바인딩.
+//   1. NormalsPrepass : DepthNormals LightMode 오브젝트 → normalsRT
+//   2. Downscale      : activeColorTexture → LowResRT (320×180, Point filter)
+//   3. Upscale        : LowResRT + normalsRT + CameraDepthTexture → 최종 컬러
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// URP ScriptableRendererFeature — pixel-art rendering pipeline.
-///
-/// Pipeline (two RenderGraph passes per frame):
-///   Pass 1 Downscale : activeColorTexture (full-res) → _LowResTemp (320×180, point filter)
-///   Pass 2 Upscale   : _LowResTemp → backBufferColor (integer scale + PixelArtEffects)
-///
-/// PixelArtLit.shader provides flat 2-tone shading + quantized normals at full res.
-/// Point-downscaling to 320×180 then locks in the blocky pixel-art look.
+/// URP ScriptableRendererFeature — pixel-art post-processing with outline.
 /// </summary>
 public class PixelRenderFeature : ScriptableRendererFeature
 {
@@ -42,13 +40,38 @@ public class PixelRenderFeature : ScriptableRendererFeature
         [Tooltip("Levels per color channel. 8 = subtle banding. 4 = strong. 16 = nearly invisible.")]
         [Range(2f, 32f)] public float quantizeSteps = 8f;
 
-        [Header("Edge-Only Dithering")]
-        [Range(0f, 1f)]      public float ditherStrength  = 0.08f;
-        [Range(0.01f, 0.5f)] public float ditherEdgeWidth = 0.18f;
+        [Header("Outline — Depth  (외곽선 담당)")]
+        [Tooltip("LinearEyeDepth 기준 threshold (단위: 미터). 이 값 이상 depth 차이에서 엣지 발생.")]
+        [Range(0.01f, 1f)] public float outlineDepthThreshold = 0.1f;
 
-        [Header("Edge Detection")]
-        [Range(0f, 1f)] public float edgeThreshold = 0.12f;
-        public Color edgeColor = Color.black;
+        [Tooltip("depthDiff에 곱하는 배율.")]
+        [Range(0.1f, 3f)] public float outlineDepthMultiplier = 1f;
+
+        [Tooltip("depthDiff 최대값 (미터). 벽-바닥 경계 등 과도한 점프로 라인이 두꺼워지는 현상 방지.")]
+        [Range(0.5f, 5f)] public float outlineDepthClamp = 2f;
+
+        [Tooltip("대각선 방향 샘플 가중치. 0.707(1/√2)이 기하학적으로 정확한 값.")]
+        [Range(0.3f, 1f)] public float outlineDiagWeight = 0.707f;
+
+        [Header("Outline — Normal  (내부 모서리 보조)")]
+        [Tooltip("Normal 차이의 smoothstep 시작점. 이 값 미만은 라인 없음.")]
+        [Range(0f, 1f)] public float outlineNormalThreshold = 0.1f;
+
+        [Tooltip("normalDiff에 곱하는 배율.")]
+        [Range(0.5f, 2f)] public float outlineNormalMultiplier = 1f;
+
+        [Tooltip("smoothstep 전환 폭. 클수록 경계가 부드러워져 작은 노이즈 억제.")]
+        [Range(0.01f, 0.1f)] public float outlineNormalEpsilon = 0.02f;
+
+        [Tooltip("Normal 채널 가중치. edgeDepth 게이트 구조상 내부 독립 기여 없음.")]
+        [Range(0.3f, 1f)] public float outlineNormalWeight = 0.5f;
+
+        [Header("Outline — Color")]
+        public Color outlineColor = Color.black;
+
+        [Header("Outline — Binarize")]
+        [Tooltip("true: floor(edge) → 픽셀 퍼펙트 하드 1px. false: 연속값 블렌딩.")]
+        public bool outlineBinarize = false;
 
         [Header("Debug")]
         [Tooltip("RawLowRes: no effects. PixelGrid: red grid at pixel boundaries.")]
@@ -62,12 +85,18 @@ public class PixelRenderFeature : ScriptableRendererFeature
     private PixelArtPass _pass;
     private Material     _effectsMaterial;
 
-    private static readonly int PixelTexelSizeId  = Shader.PropertyToID("_PixelTexelSize");
-    private static readonly int QuantizeStepsId   = Shader.PropertyToID("_QuantizeSteps");
-    private static readonly int DitherStrengthId  = Shader.PropertyToID("_DitherStrength");
-    private static readonly int DitherEdgeWidthId = Shader.PropertyToID("_DitherEdgeWidth");
-    private static readonly int EdgeThresholdId   = Shader.PropertyToID("_EdgeThreshold");
-    private static readonly int EdgeColorId       = Shader.PropertyToID("_EdgeColor");
+    private static readonly int PixelTexelSizeId           = Shader.PropertyToID("_PixelTexelSize");
+    private static readonly int QuantizeStepsId             = Shader.PropertyToID("_QuantizeSteps");
+    private static readonly int OutlineDepthThresholdId     = Shader.PropertyToID("_OutlineDepthThreshold");
+    private static readonly int OutlineDepthMultiplierId    = Shader.PropertyToID("_OutlineDepthMultiplier");
+    private static readonly int OutlineDepthClampId         = Shader.PropertyToID("_OutlineDepthClamp");
+    private static readonly int OutlineDiagWeightId         = Shader.PropertyToID("_OutlineDiagWeight");
+    private static readonly int OutlineNormalThresholdId    = Shader.PropertyToID("_OutlineNormalThreshold");
+    private static readonly int OutlineNormalMultiplierId   = Shader.PropertyToID("_OutlineNormalMultiplier");
+    private static readonly int OutlineNormalEpsilonId      = Shader.PropertyToID("_OutlineNormalEpsilon");
+    private static readonly int OutlineNormalWeightId       = Shader.PropertyToID("_OutlineNormalWeight");
+    private static readonly int OutlineColorId              = Shader.PropertyToID("_OutlineColor");
+    private static readonly int OutlineBinarizeId           = Shader.PropertyToID("_OutlineBinarize");
 
     // ── ScriptableRendererFeature API ─────────────────────────────────────────
 
@@ -88,7 +117,8 @@ public class PixelRenderFeature : ScriptableRendererFeature
         };
     }
 
-    public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
+    public override void AddRenderPasses(ScriptableRenderer renderer,
+                                          ref RenderingData renderingData)
     {
         if (_pass == null || _effectsMaterial == null) return;
 
@@ -99,21 +129,19 @@ public class PixelRenderFeature : ScriptableRendererFeature
         int pixelW = Mathf.Max(1, settings.pixelWidth);
         int pixelH = Mathf.Max(1, settings.pixelHeight);
 
-        // Sync material properties on main thread before RecordRenderGraph.
         _effectsMaterial.SetVector(PixelTexelSizeId,
             new Vector4(1f / pixelW, 1f / pixelH, pixelW, pixelH));
-        _effectsMaterial.SetFloat(QuantizeStepsId,   settings.quantizeSteps);
-        _effectsMaterial.SetFloat(DitherStrengthId,  settings.ditherStrength);
-        _effectsMaterial.SetFloat(DitherEdgeWidthId, settings.ditherEdgeWidth);
-        _effectsMaterial.SetFloat(EdgeThresholdId,   settings.edgeThreshold);
-        _effectsMaterial.SetColor(EdgeColorId,       settings.edgeColor);
-
-        // Force AA off.
-        var cam     = cameraData.camera;
-        var urpData = cam.GetUniversalAdditionalCameraData();
-        if (cam.allowMSAA) cam.allowMSAA = false;
-        if (urpData != null && urpData.antialiasing != AntialiasingMode.None)
-            urpData.antialiasing = AntialiasingMode.None;
+        _effectsMaterial.SetFloat(QuantizeStepsId,            settings.quantizeSteps);
+        _effectsMaterial.SetFloat(OutlineDepthThresholdId,    settings.outlineDepthThreshold);
+        _effectsMaterial.SetFloat(OutlineDepthMultiplierId,   settings.outlineDepthMultiplier);
+        _effectsMaterial.SetFloat(OutlineDepthClampId,        settings.outlineDepthClamp);
+        _effectsMaterial.SetFloat(OutlineDiagWeightId,        settings.outlineDiagWeight);
+        _effectsMaterial.SetFloat(OutlineNormalThresholdId,   settings.outlineNormalThreshold);
+        _effectsMaterial.SetFloat(OutlineNormalMultiplierId,  settings.outlineNormalMultiplier);
+        _effectsMaterial.SetFloat(OutlineNormalEpsilonId,     settings.outlineNormalEpsilon);
+        _effectsMaterial.SetFloat(OutlineNormalWeightId,      settings.outlineNormalWeight);
+        _effectsMaterial.SetColor(OutlineColorId,             settings.outlineColor);
+        _effectsMaterial.SetFloat(OutlineBinarizeId,          settings.outlineBinarize ? 1f : 0f);
 
         renderer.EnqueuePass(_pass);
     }
@@ -130,6 +158,13 @@ public class PixelRenderFeature : ScriptableRendererFeature
         private readonly PixelSettings _settings;
         private readonly Material      _material;
 
+        private static readonly List<ShaderTagId> DepthNormalsTags = new List<ShaderTagId>
+        {
+            new ShaderTagId("DepthNormals"),
+            new ShaderTagId("DepthNormalsOnly"),
+        };
+        private static readonly int NormalsTexId = Shader.PropertyToID("_CameraNormalsTexture");
+
         public PixelArtPass(PixelSettings settings, Material material)
         {
             _settings = settings;
@@ -138,23 +173,74 @@ public class PixelRenderFeature : ScriptableRendererFeature
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            var resourceData = frameData.Get<UniversalResourceData>();
-            var cameraData   = frameData.Get<UniversalCameraData>();
+            var resourceData  = frameData.Get<UniversalResourceData>();
+            var cameraData    = frameData.Get<UniversalCameraData>();
+            var renderingData = frameData.Get<UniversalRenderingData>();
+            var lightData     = frameData.Get<UniversalLightData>();
 
-            TextureHandle src  = resourceData.activeColorTexture;
-            TextureHandle dest = resourceData.backBufferColor;
+            TextureHandle src = resourceData.activeColorTexture;
+            if (!src.IsValid()) return;
 
-            if (!src.IsValid() || !dest.IsValid())
-            {
-                Debug.LogWarning("[PixelRenderFeature] Invalid texture handles.");
-                return;
-            }
-
+            var desc   = cameraData.cameraTargetDescriptor;
+            int fullW  = desc.width;
+            int fullH  = desc.height;
             int pixelW = Mathf.Max(1, _settings.pixelWidth);
             int pixelH = Mathf.Max(1, _settings.pixelHeight);
 
-            // Temporary low-res texture — allocated from RenderGraph pool, lives one frame.
-            var desc = cameraData.cameraTargetDescriptor;
+            int shaderPass = _settings.debugMode switch
+            {
+                DebugMode.RawLowRes => 1,
+                DebugMode.PixelGrid => 2,
+                _                  => 0,
+            };
+
+            // ── Normals RT ───────────────────────────────────────────────────
+            // URP cameraNormalsTexture를 기다리지 않고 직접 생성.
+            var normalsDesc = new TextureDesc(fullW, fullH)
+            {
+                colorFormat     = UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm,
+                depthBufferBits = DepthBits.None,
+                msaaSamples     = MSAASamples.None,
+                filterMode      = FilterMode.Point,
+                clearBuffer     = true,
+                clearColor      = new Color(0.5f, 0.5f, 1f, 1f),
+                name            = "PixelNormalsRT"
+            };
+            TextureHandle normalsRT = renderGraph.CreateTexture(normalsDesc);
+
+            // ── Pass 1: NormalsPrepass (RasterPass) ───────────────────────────
+            // DepthNormals / DepthNormalsOnly LightMode를 가진 오브젝트를 normalsRT에 렌더링.
+            // activeDepthTexture를 depth attachment로 공유 → 별도 depth RT 불필요.
+            // SetGlobalTextureAfterPass: 이 패스 완료 후 _CameraNormalsTexture 글로벌 바인딩.
+            using (var builder = renderGraph.AddRasterRenderPass<NormalsPassData>(
+                       "PixelArt NormalsPrepass", out var data))
+            {
+                builder.SetRenderAttachment(normalsRT, 0, AccessFlags.Write);
+                builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Read);
+
+                var sortFlags    = cameraData.defaultOpaqueSortFlags;
+                var drawSettings = RenderingUtils.CreateDrawingSettings(
+                    DepthNormalsTags, renderingData, cameraData, lightData, sortFlags);
+                drawSettings.perObjectData = PerObjectData.None;
+
+                var filterSettings = new FilteringSettings(RenderQueueRange.opaque);
+
+                data.rendererList = renderGraph.CreateRendererList(
+                    new RendererListParams(renderingData.cullResults, drawSettings, filterSettings));
+
+                builder.UseRendererList(data.rendererList);
+
+                // 패스 완료 후 normalsRT를 _CameraNormalsTexture 슬롯에 글로벌 바인딩
+                builder.SetGlobalTextureAfterPass(normalsRT, NormalsTexId);
+                builder.AllowPassCulling(false);
+
+                builder.SetRenderFunc(static (NormalsPassData d, RasterGraphContext ctx) =>
+                {
+                    ctx.cmd.DrawRendererList(d.rendererList);
+                });
+            }
+
+            // ── Pass 2: Downscale ─────────────────────────────────────────────
             TextureHandle lowRes = renderGraph.CreateTexture(new TextureDesc(pixelW, pixelH)
             {
                 colorFormat     = desc.graphicsFormat,
@@ -166,32 +252,10 @@ public class PixelRenderFeature : ScriptableRendererFeature
                 name            = "LowResPixelRT"
             });
 
-            // Integer-scale viewport, letterboxed.
-            int   screenW = Screen.width;
-            int   screenH = Screen.height;
-            int   scale   = Mathf.Min(Mathf.Max(1, screenW / pixelW),
-                                      Mathf.Max(1, screenH / pixelH));
-            float scaledW = pixelW * scale;
-            float scaledH = pixelH * scale;
-
-            var viewport = new Rect(
-                Mathf.Floor((screenW - scaledW) * 0.5f),
-                Mathf.Floor((screenH - scaledH) * 0.5f),
-                scaledW, scaledH);
-
-            int shaderPass = _settings.debugMode switch
-            {
-                DebugMode.RawLowRes => 1,
-                DebugMode.PixelGrid => 2,
-                _                  => 0,
-            };
-
-            // ── Pass 1: Downscale full-res → 320×180 (point, no blur) ──────────
             using (var builder = renderGraph.AddRasterRenderPass<DownPassData>(
                        "PixelArt Downscale", out var data))
             {
                 data.source = src;
-
                 builder.UseTexture(src);
                 builder.SetRenderAttachment(lowRes, 0);
                 builder.AllowPassCulling(false);
@@ -202,30 +266,39 @@ public class PixelRenderFeature : ScriptableRendererFeature
                 });
             }
 
-            // ── Pass 2: Upscale 320×180 → screen with PixelArtEffects ─────────
+            // ── Pass 3: Upscale + Outline ─────────────────────────────────────
+            // normalsRT는 SetGlobalTextureAfterPass로 _CameraNormalsTexture에 바인딩됨.
+            // UseTexture(normalsRT): 이 패스가 normalsRT를 읽는다고 RenderGraph에 선언.
+            TextureHandle depthTex = resourceData.cameraDepthTexture;
+
             using (var builder = renderGraph.AddRasterRenderPass<UpPassData>(
-                       "PixelArt Upscale + Effects", out var data))
+                       "PixelArt Upscale", out var data))
             {
                 data.source     = lowRes;
                 data.material   = _material;
-                data.viewport   = viewport;
                 data.shaderPass = shaderPass;
 
                 builder.UseTexture(lowRes);
-                builder.SetRenderAttachment(dest, 0);
+                builder.UseTexture(normalsRT);
+                if (depthTex.IsValid()) builder.UseTexture(depthTex);
+
+                builder.SetRenderAttachment(src, 0);
                 builder.AllowPassCulling(false);
 
                 builder.SetRenderFunc(static (UpPassData d, RasterGraphContext ctx) =>
                 {
-                    ctx.cmd.ClearRenderTarget(false, true, Color.black);
-                    ctx.cmd.SetViewport(d.viewport);
                     Blitter.BlitTexture(ctx.cmd, d.source,
                         new Vector4(1, 1, 0, 0), d.material, d.shaderPass);
                 });
             }
         }
 
-        // ── Pass data ─────────────────────────────────────────────────────────
+        // ── Pass 데이터 클래스 ────────────────────────────────────────────────
+
+        private class NormalsPassData
+        {
+            public RendererListHandle rendererList;
+        }
 
         private class DownPassData
         {
@@ -236,7 +309,6 @@ public class PixelRenderFeature : ScriptableRendererFeature
         {
             public TextureHandle source;
             public Material      material;
-            public Rect          viewport;
             public int           shaderPass;
         }
     }

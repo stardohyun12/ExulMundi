@@ -35,53 +35,7 @@ Shader "Custom/CelShading3D"
     {
         Tags { "RenderType"="Opaque" "RenderPipeline"="UniversalPipeline" "Queue"="Geometry" }
 
-        // ── Pass 1: Inverted Hull Outline ─────────────────────────────────────
-        // Must be FIRST so it renders behind the lit surface.
-        // "SRPDefaultUnlit" is the correct LightMode for URP to execute this pass.
-        // Without a LightMode tag URP skips the pass entirely — this was the bug.
-        Pass
-        {
-            Name "Outline"
-            Tags { "LightMode" = "SRPDefaultUnlit" }
-            Cull Front
-            ZWrite On
-
-            HLSLPROGRAM
-            #pragma vertex   VertOutline
-            #pragma fragment FragOutline
-            #pragma multi_compile_instancing
-
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-
-            CBUFFER_START(UnityPerMaterial)
-                half4  _BaseColor;     half4  _ShadowColor;   half4  _AmbientColor;
-                float  _ShadowStep;    float  _ShadowSmooth;
-                half4  _SpecularColor; float  _Glossiness;
-                float  _SpecularStep;  float  _SpecularSmooth;
-                half4  _RimColor;      float  _RimAmount;      float  _RimThreshold;
-                half4  _OutlineColor;  float  _OutlineWidth;
-            CBUFFER_END
-
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
-            struct Varyings   { float4 positionCS : SV_POSITION; UNITY_VERTEX_OUTPUT_STEREO };
-
-            Varyings VertOutline(Attributes IN)
-            {
-                Varyings OUT;
-                UNITY_SETUP_INSTANCE_ID(IN);
-                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
-                float4 posCS    = TransformObjectToHClip(IN.positionOS.xyz);
-                float3 normalCS = mul((float3x3)UNITY_MATRIX_VP, TransformObjectToWorldNormal(IN.normalOS));
-                posCS.xy       += normalize(normalCS.xy) * _OutlineWidth * posCS.w * 0.1;
-                OUT.positionCS  = posCS;
-                return OUT;
-            }
-
-            half4 FragOutline(Varyings IN) : SV_Target { return _OutlineColor; }
-            ENDHLSL
-        }
-
-        // ── Pass 2: Cel Shading ───────────────────────────────────────────────
+        // ── Pass 1: Cel Shading ───────────────────────────────────────────────
         Pass
         {
             Name "CelShading"
@@ -259,6 +213,67 @@ Shader "Custom/CelShading3D"
             CBUFFER_END
 
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
+
+        // ── Pass 5: Depth Normals ─────────────────────────────────────────────
+        // PixelRenderFeature가 ConfigureInput(Normal)을 요청할 때 URP가 이 패스를
+        // 호출해 _CameraNormalsTexture를 채운다.
+        // 노멀은 뷰 공간 기준, [0,1]로 인코딩 후 저장 → 읽을 때 * 2 - 1 로 복원.
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma vertex   VertDN
+            #pragma fragment FragDN
+            #pragma multi_compile_instancing
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half4  _BaseColor;     half4  _ShadowColor;   half4  _AmbientColor;
+                float  _ShadowStep;    float  _ShadowSmooth;
+                half4  _SpecularColor; float  _Glossiness;
+                float  _SpecularStep;  float  _SpecularSmooth;
+                half4  _RimColor;      float  _RimAmount;      float  _RimThreshold;
+                half4  _OutlineColor;  float  _OutlineWidth;
+            CBUFFER_END
+
+            struct AttributesDN
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct VaryingsDN
+            {
+                float4 positionCS : SV_POSITION;
+                float3 normalVS   : TEXCOORD0;
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            VaryingsDN VertDN(AttributesDN IN)
+            {
+                VaryingsDN OUT;
+                UNITY_SETUP_INSTANCE_ID(IN);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
+                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.normalVS    = TransformWorldToViewDir(normalWS, true);
+                return OUT;
+            }
+
+            half4 FragDN(VaryingsDN IN) : SV_Target
+            {
+                // 뷰 공간 노멀을 [0,1]로 인코딩해 저장.
+                // PixelArtEffects.shader에서 * 2 - 1로 디코딩.
+                return half4(normalize(IN.normalVS) * 0.5 + 0.5, 1.0);
+            }
             ENDHLSL
         }
     }

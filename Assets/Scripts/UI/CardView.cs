@@ -21,12 +21,24 @@ public class CardView : MonoBehaviour,
 {
     // ── 상수 ─────────────────────────────────────────────────────────────────
 
-    private const float SPD          = 12f;   // 보간 속도 — 참조 코드 그대로
-    private const float GlowBorderPx = 6f;
+    private const float SPD              = 12f;
+    private const float GlowBorderPx    = 6f;
+    private const float GlowHoldDuration = 0.5f;
+
+    // 카드 등장 팝인 — 사인파 오버슈트
+    private const float PopInDuration   = 0.32f;
+    private const float PopInPeak       = 1.18f;   // 최대 크기 비율
+    private const float PopInFrequency  = 2.5f;    // 오버슈트 진동 횟수
 
     private static readonly Color GlowColorOn  = new(1.0f, 0.78f, 0.20f, 0.90f);
     private static readonly Color GlowColorOff = new(1.0f, 0.78f, 0.20f, 0.00f);
     private static readonly Color GaugeColor   = new(0.25f, 0.25f, 0.25f, 0.55f);
+
+    // 등급별 기본 테두리 색
+    private static readonly Color RarityBorderCommon    = new(0.80f, 0.80f, 0.80f, 0.85f);
+    private static readonly Color RarityBorderUncommon  = new(0.30f, 0.69f, 0.31f, 0.85f);
+    private static readonly Color RarityBorderRare      = new(0.13f, 0.59f, 0.95f, 0.85f);
+    private static readonly Color RarityBorderLegendary = new(1.00f, 0.84f, 0.00f, 0.85f);
 
     // ── 인스펙터 (프리팹에서 직접 연결하거나, 미연결 시 런타임 생성) ────────────
 
@@ -69,7 +81,10 @@ public class CardView : MonoBehaviour,
 
     private Coroutine _glowCoroutine;
     private float     _lastActivationTime = -999f;
-    private const float GlowHoldDuration  = 0.5f;   // 마지막 발동 후 글로우를 유지할 시간(초)
+
+    // ── 팝인 ─────────────────────────────────────────────────────────────────
+
+    private Coroutine _popInCoroutine;
 
     // ── 드래그 ───────────────────────────────────────────────────────────────
 
@@ -110,6 +125,10 @@ public class CardView : MonoBehaviour,
 
         if (_isActiveSlot)
             StartCooldown(_weaponManager?.CurrentWeapon?.AttackInterval ?? 1f);
+
+        // 등장 팝인: 0 → 오버슈트 → 1 (사인파 감쇠)
+        if (_popInCoroutine != null) StopCoroutine(_popInCoroutine);
+        _popInCoroutine = StartCoroutine(PopInRoutine());
     }
 
     private void BindChildUI()
@@ -166,8 +185,18 @@ public class CardView : MonoBehaviour,
                 borderGlow.raycastTarget = false;
             }
         }
-        borderGlow.color = GlowColorOff;
+        borderGlow.color = GetRarityBorderColor(_card?.rarity ?? CardRarity.Common);
     }
+
+    /// <summary>카드 등급에 따른 기본 테두리 색을 반환합니다.</summary>
+    private static Color GetRarityBorderColor(CardRarity rarity) => rarity switch
+    {
+        CardRarity.Common    => RarityBorderCommon,
+        CardRarity.Uncommon  => RarityBorderUncommon,
+        CardRarity.Rare      => RarityBorderRare,
+        CardRarity.Legendary => RarityBorderLegendary,
+        _                    => RarityBorderCommon
+    };
 
     private void EnsureGaugeBar()
     {
@@ -211,15 +240,46 @@ public class CardView : MonoBehaviour,
 
     // ── 포즈 API — 참조 코드 그대로 ─────────────────────────────────────────
 
+    // ── 팝인 코루틴 ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 카드 등장 시 사인파 감쇠 오버슈트 애니메이션.
+    /// scale 0 → 오버슈트 → 1, 동시에 아래에서 올라오며 진입.
+    /// </summary>
+    private IEnumerator PopInRoutine()
+    {
+        float elapsed           = 0f;
+        transform.localScale    = Vector3.zero;
+        Vector3 entryOffset     = new Vector3(0f, -30f, 0f);
+        transform.localPosition = targetPos + entryOffset;
+
+        while (elapsed < PopInDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t  = Mathf.Clamp01(elapsed / PopInDuration);
+
+            // 사인파 감쇠 오버슈트: 1 − e^(−5t)·cos(2π·freq·t)
+            float decay    = Mathf.Exp(-5f * t);
+            float wave     = Mathf.Cos(2f * Mathf.PI * PopInFrequency * t);
+            float scaleMul = Mathf.Clamp(1f - decay * wave * (1f - t), 0f, PopInPeak);
+
+            transform.localScale    = targetScale * scaleMul;
+            transform.localPosition = Vector3.Lerp(targetPos + entryOffset, targetPos, t);
+            yield return null;
+        }
+
+        transform.localScale    = targetScale;
+        transform.localPosition = targetPos;
+        _popInCoroutine         = null;
+    }
+
     /// <summary>HandManager.ArrangeHand()에서 기준 위치와 각도를 전달합니다.</summary>
     public void SetBasePose(Vector3 pos, float rot)
     {
         basePos = pos;
         baseRot = rot;
         if (!isSelected) { targetPos = pos; targetRot = rot; targetScale = Vector3.one; }
-    }
-
-    /// <summary>호버 상태를 설정합니다. 선택 중일 때는 무시됩니다.</summary>
+    }    /// <summary>호버 상태를 설정합니다. 선택 중일 때는 무시됩니다.</summary>
     public void SetHovered(bool on)
     {
         if (isSelected) return;
@@ -421,7 +481,7 @@ public class CardView : MonoBehaviour,
             yield return null;
         }
 
-        borderGlow.color = GlowColorOff;
+        borderGlow.color = GetRarityBorderColor(_card?.rarity ?? CardRarity.Common);
         _glowCoroutine   = null;
     }
 

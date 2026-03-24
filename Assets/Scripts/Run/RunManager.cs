@@ -1,13 +1,20 @@
 using UnityEngine;
+using System;
 using System.Collections;
 
 /// <summary>
 /// 런 전체 흐름을 관리합니다.
 /// 시작 시 세계(무기 타입) 1회 선택 → 전투 → 카드 보상 → 반복.
+/// 3번 전투마다 휴식 공간이 등장합니다.
 /// </summary>
 public class RunManager : MonoBehaviour
 {
+    private const int RestRoomInterval = 3;
+
     public static RunManager Instance { get; private set; }
+
+    /// <summary>세계 선택이 완료될 때 발생합니다. WorldPaletteController 등이 구독합니다.</summary>
+    public static event Action<WorldDefinition> OnWorldChosen;
 
     [Header("참조")]
     [SerializeField] private EncounterManager encounterManager;
@@ -15,6 +22,7 @@ public class RunManager : MonoBehaviour
     [SerializeField] private EscapeUI         escapeUI;
     [SerializeField] private WorldSelectionUI worldSelectionUI;
     [SerializeField] private GameOverUI       gameOverUI;
+    [SerializeField] private RestRoomManager  restRoomManager;
 
     [Header("세계 풀 (시작 시 선택)")]
     [SerializeField] private WorldDefinition[] worldPool;
@@ -26,10 +34,12 @@ public class RunManager : MonoBehaviour
     [SerializeField] private float difficultyPerEncounter = 1.15f;
 
     private int             _encounterIndex = 0;
+    private int             _encounterCount = 0;
     private float           _difficultyMult = 1f;
     private WorldDefinition _selectedWorld;
 
     public int             EncounterIndex => _encounterIndex;
+    public int             EncounterCount => _encounterCount;
     public float           DifficultyMult => _difficultyMult;
     public WorldDefinition SelectedWorld  => _selectedWorld;
 
@@ -43,7 +53,6 @@ public class RunManager : MonoBehaviour
     {
         PlayerHealth.OnPlayerDied += OnPlayerDied;
 
-        // 게임 시작 시 단 1회 세계 선택
         if (worldSelectionUI != null && worldPool != null && worldPool.Length > 0)
             worldSelectionUI.Show(worldPool, OnWorldSelected);
         else
@@ -58,15 +67,12 @@ public class RunManager : MonoBehaviour
     {
         _selectedWorld = world;
 
-        // 무기 카드를 손패에 추가 → PassiveEffectApplier가 무기를 장착합니다.
+        OnWorldChosen?.Invoke(world);
+
         if (world.weaponCard != null)
-        {
             CardInventory.Instance?.AddCard(world.weaponCard);
-        }
         else
-        {
-            Debug.LogWarning($"[RunManager] '{world.worldName}'에 weaponCard가 없습니다. 무기가 장착되지 않습니다.");
-        }
+            Debug.LogWarning($"[RunManager] '{world.worldName}'에 weaponCard가 없습니다.");
 
         Debug.Log($"[RunManager] 세계: {world.worldName} | 무기 카드: {world.weaponCard?.cardName ?? "없음"}");
         BeginEncounter();
@@ -76,6 +82,20 @@ public class RunManager : MonoBehaviour
 
     private void BeginEncounter()
     {
+        // 첫 번째 이후, 3의 배수 전투마다 휴식 공간 진입
+        if (_encounterCount > 0 && _encounterCount % RestRoomInterval == 0 && restRoomManager != null)
+        {
+            Debug.Log($"[RunManager] 인카운터 {_encounterCount} — 휴식 공간 진입");
+            restRoomManager.Enter(StartBattle);
+        }
+        else
+        {
+            StartBattle();
+        }
+    }
+
+    private void StartBattle()
+    {
         encounterManager.OnEncounterComplete = OnEncounterComplete;
         encounterManager.StartEncounter(_difficultyMult);
         escapeUI?.Show();
@@ -84,6 +104,7 @@ public class RunManager : MonoBehaviour
     private void OnEncounterComplete()
     {
         escapeUI?.Hide();
+        _encounterCount++;
         StartCoroutine(ShowRewardThenNext());
     }
 
@@ -108,7 +129,7 @@ public class RunManager : MonoBehaviour
     {
         _encounterIndex++;
         _difficultyMult *= difficultyPerEncounter;
-        Debug.Log($"[RunManager] 인카운터 {_encounterIndex} | 난이도 x{_difficultyMult:F2}");
+        Debug.Log($"[RunManager] 인카운터 {_encounterIndex} | 누적 전투 {_encounterCount} | 난이도 x{_difficultyMult:F2}");
         BeginEncounter();
     }
 
@@ -132,6 +153,7 @@ public class RunManager : MonoBehaviour
     {
         encounterManager.ForceEnd();
         escapeUI?.Hide();
+        _encounterCount++;
         OnRewardChosen(null); // 보상 없이 다음으로
     }
 

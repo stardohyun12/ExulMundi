@@ -16,10 +16,10 @@ Shader "Custom/PixelArtLit"
     Properties
     {
         [Header(Surface Colors)]
-        // Only two colors exit this shader. Palette work is done in post-pass.
-        _LightColor   ("Light Color",  Color) = (0.85, 0.68, 0.45, 1)
-        _ShadowColor  ("Shadow Color", Color) = (0.14, 0.10, 0.22, 1)
-        _AmbientColor ("Ambient",      Color) = (0.05, 0.04, 0.08, 1)
+        // 오브젝트 고유 색은 BaseColor 하나. 밝음/그림자 색은 씬 라이트가 결정.
+        _BaseColor    ("Base Color",    Color)         = (0.85, 0.68, 0.45, 1)
+        _ShadowDarken ("Shadow Darken", Range(0, 1))  = 0.25
+        _AmbientColor ("Ambient",       Color)         = (0.05, 0.04, 0.08, 1)
 
         [Space(8)]
         [Header(Light Split)]
@@ -81,8 +81,8 @@ Shader "Custom/PixelArtLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                half4 _LightColor;
-                half4 _ShadowColor;
+                half4 _BaseColor;
+                float _ShadowDarken;
                 half4 _AmbientColor;
                 float _ShadowThresh;
                 float _NormalSteps;
@@ -163,21 +163,30 @@ Shader "Custom/PixelArtLit"
                 float3 normalWS  = QuantizeNormal(normalize(IN.normalWS), _NormalSteps);
                 float3 viewDirWS = normalize(IN.viewDirWS);
 
-                Light  mainLight = GetMainLight(IN.shadowCoord);
+                // 씬 메인 라이트(Directional Light)를 섀도우 맵 없이 가져옴.
+                // 섀도우 맵 의존을 없애야 NdotL이 빛 방향에 정직하게 반응한다.
+                Light  mainLight = GetMainLight();
                 float3 lightDir  = normalize(mainLight.direction);
 
-                // Binary shadow attenuation: 0 or 1 only.
-                float shadowAtten = step(0.5, mainLight.shadowAttenuation);
-                float NdotL       = saturate(dot(normalWS, lightDir)) * shadowAtten;
+                // ── 2-tone: 순수 기하학 기반 ──────────────────────────────────
+                float NdotL = saturate(dot(normalWS, lightDir));
+                float lit   = step(_ShadowThresh, NdotL);
 
-                // STRICT 2-TONE: one step() call, output is 0 or 1, never 0.5.
-                // Combined with quantized normals, this ensures large areas of
-                // geometry produce identical flat color blocks — true pixel art form.
-                float lit = step(_ShadowThresh, NdotL);
+                // ── 캐스트 섀도우: 다른 오브젝트가 드리운 그림자 ─────────────
+                // 섀도우 키워드가 활성화된 경우에만 별도로 적용.
+                #if defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE) || defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+                {
+                    float shadow = MainLightRealtimeShadow(IN.shadowCoord);
+                    lit *= step(0.5, shadow);
+                }
+                #endif
 
-                // Two-tone diffuse. LIGHT_COLOR or SHADOW_COLOR only.
-                half3 color = lerp(_ShadowColor.rgb, _LightColor.rgb, lit)
-                            * half3(mainLight.color);
+                // ── 씬 라이트 색 × _BaseColor ─────────────────────────────────
+                // Lit   = _BaseColor × mainLight.color
+                // Shadow = _BaseColor × _ShadowDarken × mainLight.color
+                half3 litTone    = _BaseColor.rgb;
+                half3 shadowTone = _BaseColor.rgb * _ShadowDarken;
+                half3 color      = lerp(shadowTone, litTone, lit) * half3(mainLight.color);
 
                 // Specular: binary highlight dot. On or off, never partial.
                 if (_SpecularStr > 0.001)
@@ -195,11 +204,11 @@ Shader "Custom/PixelArtLit"
                     for (uint i = 0u; i < count; ++i)
                     {
                         Light  addL      = GetAdditionalLight(i, IN.positionWS, half4(1,1,1,1));
-                        float  addShadow = step(0.5, addL.shadowAttenuation);
-                        float  addNdotL  = saturate(dot(normalWS, normalize(addL.direction)))
-                                         * addShadow * addL.distanceAttenuation;
-                        float  addLit    = step(_ShadowThresh, addNdotL);
-                        color           += _LightColor.rgb * half3(addL.color) * addLit;
+                        float  addNdotL = saturate(dot(normalWS, normalize(addL.direction)))
+                                        * step(0.5, addL.shadowAttenuation)
+                                        * addL.distanceAttenuation;
+                        float  addLit   = step(_ShadowThresh, addNdotL);
+                        color          += _BaseColor.rgb * half3(addL.color) * addLit;
                     }
                 }
                 #endif
@@ -234,8 +243,8 @@ Shader "Custom/PixelArtLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                half4 _LightColor;
-                half4 _ShadowColor;
+                half4 _BaseColor;
+                float _ShadowDarken;
                 half4 _AmbientColor;
                 float _ShadowThresh;
                 float _NormalSteps;
@@ -280,8 +289,7 @@ Shader "Custom/PixelArtLit"
                 return OUT;
             }
 
-            half4 FragOutline(Varyings IN) : SV_Target { return _OutlineColor; }
-            ENDHLSL
+            half4 FragOutline(Varyings IN) : SV_Target { return _OutlineColor; }            ENDHLSL
         }
 
         // ── Pass 3: ShadowCaster ──────────────────────────────────────────────
@@ -304,8 +312,8 @@ Shader "Custom/PixelArtLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                half4 _LightColor;
-                half4 _ShadowColor;
+                half4 _BaseColor;
+                float _ShadowDarken;
                 half4 _AmbientColor;
                 float _ShadowThresh;
                 float _NormalSteps;
@@ -373,8 +381,8 @@ Shader "Custom/PixelArtLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                half4 _LightColor;
-                half4 _ShadowColor;
+                half4 _BaseColor;
+                float _ShadowDarken;
                 half4 _AmbientColor;
                 float _ShadowThresh;
                 float _NormalSteps;

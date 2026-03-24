@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Exul_Mundi.slnx"
+    "dotnet.defaultSolution": "ExulMundi.slnx"
 }

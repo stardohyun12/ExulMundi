@@ -1,4 +1,5 @@
 using System.Collections;
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -22,6 +23,9 @@ public class PlayerController3D : MonoBehaviour
     private InputAction _dashAction;
     private bool        _isDashing;
     private float       _dashCooldownTimer;
+
+    /// <summary>대시 시작 시 발생합니다. 파라미터는 대시 방향(월드 공간).</summary>
+    public event Action<Vector3> OnDashStarted;
 
     private void Awake()
     {
@@ -93,6 +97,7 @@ public class PlayerController3D : MonoBehaviour
         _isDashing         = true;
         _dashCooldownTimer = dashCooldown;
         _rb.linearVelocity = direction * dashSpeed;
+        OnDashStarted?.Invoke(direction);
         yield return new WaitForSeconds(dashDuration);
         _isDashing = false;
     }

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fc2abdb686b9dd4eab2613972de2e04, type: 3}
+  m_Name: ArmedWarrior
+  m_EditorClassIdentifier: Assembly-CSharp::SynergyDefinition
+  synergyName: "\uBB34\uC7A5\uD55C \uC804\uC0AC"
+  effectDescription: "\uACF5\uACA9\uB825 +20%"
+  requiredCards: []
+  requiredSynergyTags:
+  - Warrior
+  - Armor
+  bonusEffectType: BonusDamageEffect
+  bonusEffectValue: 20
+  bonusEffectValue2: 0

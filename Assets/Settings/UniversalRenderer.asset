@@ -50,7 +50,7 @@ MonoBehaviour:
   m_ShadowTransparentReceive: 1
   m_RenderingMode: 0
   m_DepthPrimingMode: 0
-  m_CopyDepthMode: 1
+  m_CopyDepthMode: 2
   m_DepthAttachmentFormat: 0
   m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
@@ -69,10 +69,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PixelRenderFeature
   m_Active: 1
   settings:
-    pixelWidth: 320
-    pixelHeight: 180
-    ditherStrength: 0.55
-    ditherEdgeWidth: 0.18
-    edgeThreshold: 0.12
-    edgeColor: {r: 0, g: 0, b: 0, a: 1}
+    pixelWidth: 640
+    pixelHeight: 360
+    quantizeSteps: 8
+    outlineDepthThreshold: 0.005
+    outlineDepthMultiplier: 3
+    outlineDepthScale: 2
+    outlineDepthClamp: 0.02
+    outlineNormalThreshold: 0.1
+    outlineNormalMultiplier: 1
+    outlineNormalEpsilon: 0.02
+    outlineNormalWeight: 0.5
+    outlineColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineBinarize: 1
     debugMode: 0

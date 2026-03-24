@@ -14,13 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PixelRenderFeature
   m_Active: 1
   settings:
-    pixelWidth: 320
-    pixelHeight: 180
+    pixelWidth: 640
+    pixelHeight: 360
+    quantizeSteps: 8
     ditherStrength: 0.3
     ditherEdgeWidth: 0.18
-    edgeThreshold: 0.15
+    edgeThreshold: 0.349
     edgeColor: {r: 0, g: 0, b: 0, a: 1}
-    debugMode: 0
+    debugMode: 2
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
